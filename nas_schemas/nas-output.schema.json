@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Nova Agent Standard - Output",
+  "type": "object",
+  "required": ["status", "agent_id"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["success", "error"],
+      "description": "Result status of the agent execution"
+    },
+    "agent_id": {
+      "type": "string",
+      "description": "The specific Nova agent that produced the output"
+    },
+    "response": {
+      "type": "object",
+      "description": "Agent-specific output data when status=success"
+    },
+    "logs": {
+      "type": "object",
+      "properties": {
+        "tokens_used": { "type": "integer" },
+        "processing_time_ms": { "type": "integer" }
+      },
+      "description": "Performance logs"
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "description": "Error details when status=error"
+    }
+  }
+}
