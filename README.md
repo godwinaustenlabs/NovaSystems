@@ -18,5 +18,5 @@ They want to scale but every next client feels like chaos. They waste hours assi
 folowing up, chasing leads, and rebuilding manual flows.
 
 
-### NOVA ENDS THAT
-### NOT WITH A DASHBOARD, BUT WITH PEACE.
+> NOVA ENDS THAT
+> NOT WITH A DASHBOARD, BUT WITH PEACE.
