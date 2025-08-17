@@ -1,50 +1,39 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Nova Agent/Tool Standard (NAS) - Input",
-  "type": "object",
-  "required": ["id", "payload"],
-  "properties": {
-    "id": {
-      "type": "string",
-      "description": "Agent ID or Tool ID depending on context"
-    },
-    "client_id": {
-      "type": "string",
-      "description": "Required for agents, optional for tools"
-    },
-    "context": {
+  "oneOf": [
+    {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "NASInput",
       "type": "object",
-      "description": "Required for agents, optional for tools",
-      "required": ["memory", "tools", "vector_sources"],
       "properties": {
-        "memory": { "type": "object" },
-        "tools": { "type": "array", "items": { "type": "string" } },
-        "vector_sources": { "type": "array", "items": { "type": "string" } }
-      }
-    },
-    "payload": {
-      "type": "object",
-      "required": ["input_text", "metadata"],
-      "properties": {
-        "input_text": {
+        "subject": {
           "type": "string",
-          "description": "Query, instruction, or task"
+          "minLength": 1,
+          "description": "The main subject or task context for the agent."
         },
-        "metadata": {
-          "type": "object",
-          "required": ["channel", "timestamp", "language"],
-          "properties": {
-            "channel": { "type": "string" },
-            "timestamp": { "type": "string", "format": "date-time" },
-            "language": { "type": "string" }
-          }
+        "type": {
+          "type": "string",
+          "enum": [
+            "classification",
+            "generation",
+            "retrieval",
+            "planning",
+            "execution"
+          ],
+          "description": "Specifies what kind of NAS operation is requested."
         },
-        "args": {
+        "memoryType": {
+          "type": "string",
+          "enum": ["short_term", "long_term", "episodic"],
+          "description": "Defines the memory scope to use for this request."
+        },
+        "payload": {
           "type": "object",
-          "description": "Tool arguments, optional for agents",
+          "description": "The core input data for the NAS logic.",
           "additionalProperties": true
         }
-      }
+      },
+      "required": ["subject", "type", "memoryType", "payload"],
+      "additionalProperties": false
     }
-  }
+  ]
 }

@@ -1,36 +1,40 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Nova Agent/Tool Standard (NAS) - Output",
   "type": "object",
-  "required": ["status", "id"],
   "properties": {
-    "status": {
-      "type": "string",
-      "enum": ["success", "error"],
-      "description": "Execution result"
-    },
-    "id": {
-      "type": "string",
-      "description": "Agent ID or Tool ID depending on context"
-    },
-    "response": {
-      "type": "object",
-      "description": "Agent-specific or tool-specific output data when status=success",
-      "additionalProperties": true
-    },
-    "logs": {
+    "content": { "type": "string" },
+    "type": { "type": "string", "enum": ["NAS_OUTPUT"] },
+    "scratchpad": { "type": "array", "items": { "type": "string" } },
+    "memory": {
       "type": "object",
       "properties": {
-        "tokens_used": { "type": "integer" },
-        "execution_time_ms": { "type": "integer" }
-      }
+        "messages": { "type": "array", "items": { "type": "object" } },
+        "usedTokens": { "type": "number" }
+      },
+      "required": ["messages", "usedTokens"]
     },
-    "error": {
-      "type": "object",
-      "properties": {
-        "code": { "type": "string" },
-        "message": { "type": "string" }
-      }
+    "toolRequest": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "params": { "type": "object" }
+          },
+          "required": ["name", "params"]
+        }
+      ]
+    },
+    "finalAnswer": {
+      "anyOf": [{ "type": "null" }, { "type": "string" }]
     }
-  }
+  },
+  "required": [
+    "content",
+    "type",
+    "scratchpad",
+    "memory",
+    "toolRequest",
+    "finalAnswer"
+  ]
 }
