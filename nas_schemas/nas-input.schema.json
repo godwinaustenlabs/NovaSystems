@@ -1,39 +1,59 @@
 {
-  "oneOf": [
-    {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "NASInput",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NAS Agent Request",
+  "type": "object",
+  "required": [
+    "clientId",
+    "agentId",
+    "systemPrompt",
+    "userPrompt",
+    "useScratchpad",
+    "memoryType",
+    "limitTurns",
+    "summarizer",
+    "tools",
+    "provider",
+    "model",
+    "temperature",
+    "maxOutputTokens",
+    "estCharsPerToken",
+    "verbose",
+    "api_key"
+  ],
+  "properties": {
+    "clientId": { "type": "string" },
+    "agentId": { "type": "string" },
+    "systemPrompt": { "type": "string" },
+    "userPrompt": { "type": "string" },
+    "useScratchPad": { "type": "boolean" },
+    "memoryType": { "type": "string" },
+    "memoryOptions": {
       "type": "object",
       "properties": {
-        "subject": {
-          "type": "string",
-          "minLength": 1,
-          "description": "The main subject or task context for the agent."
-        },
-        "type": {
-          "type": "string",
-          "enum": [
-            "classification",
-            "generation",
-            "retrieval",
-            "planning",
-            "execution"
-          ],
-          "description": "Specifies what kind of NAS operation is requested."
-        },
-        "memoryType": {
-          "type": "string",
-          "enum": ["short_term", "long_term", "episodic"],
-          "description": "Defines the memory scope to use for this request."
-        },
-        "payload": {
-          "type": "object",
-          "description": "The core input data for the NAS logic.",
-          "additionalProperties": true
-        }
+        "limitTurns": { "type": "integer", "minimum": 1 }
       },
-      "required": ["subject", "type", "memoryType", "payload"],
-      "additionalProperties": false
-    }
-  ]
+      "required": ["limitTurns"]
+    },
+    "summarizer": {
+      "type": "object",
+      "properties": {
+        "temperature": { "type": "number" },
+        "maxOutputTokens": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["temperature", "maxOutputTokens"]
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    },
+    "provider": { "type": "string" },
+    "model": { "type": "string" },
+    "temperature": { "type": "number" },
+    "maxOutputTokens": { "type": "integer", "minimum": 1 },
+    "estCharsPerToken": { "type": "integer", "minimum": 1 },
+    "verbose": { "type": "boolean" },
+    "api_key": { "type": "string" },
+    "totalTokenBudget": { "type": "integer", "minimum": 1 },
+    "reserveForOutput": { "type": "integer", "minimum": 1 }
+  }
 }

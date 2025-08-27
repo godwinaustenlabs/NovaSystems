@@ -1,36 +1,33 @@
+// ===============================
+// File: validateNAS.js
+// AJV-based NAS input/output validators
+// ===============================
+
 import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
-import inputSchema from '../nas_schemas/nas-input.schema.json' with { type: 'json' };
-import outputSchema from '../nas_schemas/nas-output.schema.json' with { type: 'json' };
+import nasInputSchema from '../nas_schemas/nas-input.schema.json' with { type: 'json' };
+import nasOutputSchema from '../nas_schemas/nas-output.schema.json' with { type: 'json' };
 
-const ajv = new Ajv({ allErrors: true });
-addFormats(ajv);
+const ajv = new Ajv({ allErrors: true, strict: false });
 
-const validateInput = ajv.compile(inputSchema);
-const validateOutput = ajv.compile(outputSchema);
+const validateInput = ajv.compile(nasInputSchema);
+const validateOutput = ajv.compile(nasOutputSchema);
 
-/**
- * Validate incoming data against NAS Input Schema
- * @param {Object} data - JSON object to validate
- * @returns {Object} - { valid: boolean, errors: array }
- */
 export function validateNASInput(data) {
   const valid = validateInput(data);
-  return {
-    valid,
-    errors: valid ? [] : validateInput.errors,
-  };
+  return valid
+    ? { valid: true }
+    : {
+        valid: false,
+        errors: ajv.errorsText(validateInput.errors, { separator: '\n' }),
+      };
 }
 
-/**
- * Validate outgoing data against NAS Output Schema
- * @param {Object} data - JSON object to validate
- * @returns {Object} - { valid: boolean, errors: array }
- */
 export function validateNASOutput(data) {
   const valid = validateOutput(data);
-  return {
-    valid,
-    errors: valid ? [] : validateOutput.errors,
-  };
+  return valid
+    ? { valid: true }
+    : {
+        valid: false,
+        errors: ajv.errorsText(validateOutput.errors, { separator: '\n' }),
+      };
 }

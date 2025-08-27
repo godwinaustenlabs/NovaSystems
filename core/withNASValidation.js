@@ -1,16 +1,17 @@
+// ===============================
+// File: NASValidation.js (light touch, commented)
+// ===============================
 import { validateNASInput, validateNASOutput } from '../utils/validateNAS.js';
 
 /**
  * Wraps an agent or tool logic function with NAS input/output validation
  * Works for both Agents and Tools
- * @param {Function} logicFn - async function that takes NAS input and returns NAS output
- * @returns {Function} - async function with validation before & after logic
  */
-export function withNASValidation(logicFn) {
-  return async function (requestBody) {
+export function withNASValidation(requestBody, logicFn) {
+  return async function () {
     const id = requestBody?.agent_id || requestBody?.id || 'unknown';
 
-    // Validate NAS Input
+    // 1) Validate NAS Input
     const inCheck = validateNASInput(requestBody);
     if (!inCheck.valid) {
       return {
@@ -23,7 +24,7 @@ export function withNASValidation(logicFn) {
       };
     }
 
-    // Run the logic
+    // 2) Run the logic
     let output;
     try {
       output = await logicFn(requestBody);
@@ -33,12 +34,12 @@ export function withNASValidation(logicFn) {
         id,
         error: {
           code: 'LOGIC_ERROR',
-          message: err.message || 'Unknown error in logic',
+          message: err?.message || 'Unknown error in logic',
         },
       };
     }
 
-    // Validate NAS Output
+    // 3) Validate NAS Output
     const outCheck = validateNASOutput(output);
     if (!outCheck.valid) {
       return {

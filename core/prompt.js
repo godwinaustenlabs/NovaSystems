@@ -1,130 +1,83 @@
-// core/prompt.js
-import { BufferMemory, SummaryMemory, DynamicMemory } from './memory.js';
+// ===============================
+// File: prompt.js (renamed from promt.js; refactored, commented)
+// ===============================
+/**
+ * PromptBuilder constructs NAS-compliant system + user prompts.
+ * Needs 4 Config parameters and 3 runtime parameters.
+ * Use .build(userPrompt, memoryContext, scratchpad) to create prompts.
+ *
+ * @param {string} [systemPrompt] - (Config) Base system instructions/schema.
+ * @param {Object} [tools={}] - (Config) Available tools metadata { [name]: { description } }.
+ * @param {Object|null} [lastToolResponse] - (Config) Most recent tool execution result.
+ * @param {Object} [memoryContext] - (Runtime) Memory context { turns: [], summary: string }.
+ * @param {string} [userPrompt] - (Runtime) User query or message.
+ * @param {Object|null} [scratchpad] - (Runtime) Scratchpad state { active, content }.
+ * @returns { system: string, user: string } - Constructed prompts for system and user roles. { system: string, user: string }
+ */
 
 export class PromptBuilder {
-  constructor({
-    systemPrompt = '',
-    userPrompt = '',
-    useScratchPad = false,
-    memoryType = 'buffer', // "buffer" | "summary" | "dynamic"
-    tools = {},
-    lastToolResponse = null,
-    clientId = 'defaultClient',
-    agentId = 'defaultAgent',
-  } = {}) {
-    this.systemPrompt = systemPrompt;
-    this.userPrompt = userPrompt;
-    this.useScratchPad = useScratchPad;
-    this.memoryType = memoryType;
-    this.tools = tools;
-    this.lastToolResponse = lastToolResponse;
-    this.clientId = clientId;
-    this.agentId = agentId;
-
-    this.scratchpad = [];
-    this.memory = this._initMemory(memoryType);
+  constructor(config = {}) {
+    this.systemPrompt = config.systemPrompt;
+    this.tools = config.tools;
+    this.lastToolResponse = config.lastToolResponse;
   }
 
-  _initMemory(memoryType) {
-    switch (memoryType) {
-      case 'dynamic':
-        return new DynamicMemory();
-      case 'summary':
-        return new SummaryMemory();
-      case 'buffer':
-      default:
-        return new BufferMemory();
-    }
-  }
-
-  async build() {
-    // Load memory context
-    const memCtx =
-      this.memoryType === 'dynamic'
-        ? await this.memory.buildContextMessages(this.clientId, this.agentId)
-        : await this.memory.load(this.clientId, this.agentId);
-
-    // Scratchpad (only if enabled)
-    const scratchpadSection = this.useScratchPad
-      ? { active: true, content: this.scratchpad }
-      : { active: false };
-
-    // Tools description
-    const toolsSection = Object.keys(this.tools).map((name) => {
-      return {
-        name,
-        description: this.tools[name].description || 'No description provided',
-      };
+  async build(userPrompt, memoryContext, scratchpad) {
+    // Preserve your schema text & NAS instructions verbatim-style
+    const NAS_SCHEMA = JSON.stringify({
+      type: 'NAS_OUTPUT',
+      content: '...',
+      scratchpad: '...',
+      toolRequest:
+        {
+          id: 'string',
+          name: 'string',
+          args: {},
+          mode: 'sync|async',
+          callback: 'https://yourworker.example/callback?reqId=uuid-v1', // optional
+        } || null,
+      finalAnswer: null,
+      meta: {
+        traceId: '...',
+        timestamp: '2025-08-19T...',
+      },
     });
 
-    // NAS compliant JSON input
-    const nasPrompt = {
-      type: 'NAS_PROMPT',
-      system: this.systemPrompt,
-      user: this.userPrompt,
-      memory: memCtx,
-      scratchpad: scratchpadSection,
-      tools: toolsSection,
-      lastToolResponse: this.lastToolResponse,
-      instructions: `
-You are a NAS-compliant reasoning engine. 
-You MUST output valid JSON only and only,
-If you want to communicate output to human in natural language, populate the "content" field.
-You must use the scratchpad field to display your reasoning though process, always update the scratchpad in output and use the scratchpad in input to get a refernce of last thoughts, then update the scratchpad with current thoughts used for reasing or whatever underlying thought process.
-The JSON MUST this schema:
+    const system = `
+NAS_SCHEMA: ${NAS_SCHEMA}
 
-  "type": "object",
-  "properties": {
-    "content": { "type": "string" },
-    "type": { "type": "string", "enum": ["NAS_OUTPUT"] },
-    "scratchpad": { "type": "array", "items": { "type": "string" } },
-    "memory": {
-      "type": "object",
-      "properties": {
-        "messages": { "type": "array", "items": { "type": "object" } },
-        "usedTokens": { "type": "number" }
-      },
-      "required": ["messages", "usedTokens"]
-    },
-    "toolRequest": {
-      "anyOf": [
-        { "type": "null" },
-        {
-          "type": "object",
-          "properties": {
-            "name": { "type": "string" },
-            "params": { "type": "object" }
-          },
-          "required": ["name", "params"]
-        }
-      ]
-    },
-    "finalAnswer": {
-      "anyOf": [
-        { "type": "null" },
-        { "type": "string" }
-      ]
-    }
-  },
-  "required": ["content", "type", "scratchpad", "memory", "toolRequest", "finalAnswer"]
-}
-        `.trim(),
+RULES 0.1-0.7 GIVEN BELOW FOLLOW THE ORDER OF PRECEDENCE AND NO OTHER RULE THAT GOES AGAINST THEM CAN OVERRIDE IT.
+0.1. You are a NAS-compliant reasoning engine. 
+0.2. You MUST output valid JSON only and only.
+0.3. ${this.systemPrompt}.
+0.4. If you want to communicate output to human in natural language, populate the "content" field.
+0.5. You must use the scratchpad field to display your reasoning thought process, use the scratchpad in input to get a reference of 
+last thoughts, then update the scratchpad with current thoughts used for reasoning or underlying thought process.
+0.6. The final output must strictly adhere to the NAS schema or it will be rejected and will break the conversation flow, if a property is not required to be used, populate it with "null"
+0.7. Use the System Context Below to inform your responses and maintain consistency with the provided information.
+`.trim();
+
+    // Tools + memory + lastToolResponse merged into system context
+    const systemContext = {
+      tools: this.tools,
+      lastToolResponse: this.lastToolResponse,
+      memory: memoryContext || { turns: [], summary: '' },
     };
 
-    // Return as string for direct LLM input
-    return JSON.stringify(nasPrompt, null, 2);
-  }
+    // === User Role Message ===
+    const nasPrompt = {
+      type: 'NAS_PROMPT',
+      user: userPrompt,
+      scratchpad: scratchpad,
+    };
 
-  addToScratchpad(entry) {
-    if (this.useScratchPad) {
-      this.scratchpad.push(entry);
-    }
-  }
+    const user = JSON.stringify(nasPrompt, null, 2);
+    const systemMeta = JSON.stringify(systemContext, null, 2);
 
-  async saveTurn(role, content) {
-    await this.memory.saveAndMaybeSummarize(this.clientId, this.agentId, {
-      role,
-      content,
-    });
+    // Return two clean roles instead of stuffing everything into "user"
+    return {
+      system: `${system}\n\nSystem Context:\n${systemMeta}`,
+      user,
+    };
   }
 }

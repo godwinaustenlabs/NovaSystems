@@ -24,6 +24,8 @@
     "ajv": "^8.17.1",
     "ajv-formats": "^2.1.1",
     "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "ngrok": "^5.0.0-beta.2",
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
@@ -58,5 +60,16 @@
     "*.{js,jsx,ts,tsx,cjs,mjs,json,css,scss,md,yml,yaml}": [
       "prettier --write"
     ]
-  }
+  },
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/godwinaustenlabs/NovaSystems.git"
+  },
+  "bugs": {
+    "url": "https://github.com/godwinaustenlabs/NovaSystems/issues"
+  },
+  "homepage": "https://github.com/godwinaustenlabs/NovaSystems#readme"
 }
