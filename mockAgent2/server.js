@@ -1,8 +1,8 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import 'dotenv/config.js';
-import { Pipeline } from '../index.js';
-import { withNASValidation } from '../index.js';
+import { Pipeline } from '../src/index.js';
+import { withNASValidation } from '../src/index.js';
 
 const app = express();
 app.use(bodyParser.json());

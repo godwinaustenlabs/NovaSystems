@@ -1,8 +1,7 @@
-import { Pipeline } from './index.js '; // ✅ adjust relative path if needed
+import { Pipeline } from '../src/index.js'; // ✅ adjust relative path if needed
 
 import 'dotenv/config';
 import readline from 'readline';
-import { withNASValidation } from './index.js';
 
 // CLI interface for interacting with the agent
 const rl = readline.createInterface({

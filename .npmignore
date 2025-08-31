@@ -1,0 +1,24 @@
+# Exclude dev folders
+src/
+node_modules/
+.husky/
+.git/
+.vscode/
+.idea/
+
+# Config / tooling
+.eslintrc.js
+eslint.config.js
+.prettierrc
+.prettierignore
+.stylelintrc.json
+.editorconfig
+.commitlintrc.json
+
+# Environment
+.env
+
+# Logs & misc
+*.log
+.DS_Store
+Thumbs.db

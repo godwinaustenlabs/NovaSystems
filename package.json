@@ -1,11 +1,21 @@
 {
-  "name": "novasystems",
-  "version": "1.0.0",
-  "description": "Core NAS schemas and utilities for all Nova Agents",
-  "main": "index.js",
-  "type": "module",
+  "name": "nova-agent-framework",
+  "version": "0.0.1-dev.1",
+  "description": "NOVA AGENT FRAMEWORK(dev)",
+  "main": "dist/index.js",
+  "types": "./index.d.ts",
+  "files": [
+    "dist/core/",
+    "dist/utils/",
+    "dist/nas_schemas/",
+    "dist/index.js",
+    "dist/index.d.ts",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
-    "test": "node ./tests/run-schema-tests.js",
+    "build": "cp -r src/ dist",
+    "prepublishOnly": "npm run build",
     "lint": "eslint --fix",
     "commit": "cz",
     "format": "prettier . --write",
