@@ -46,7 +46,7 @@
 		"CF_API_KEY": "lMgMif66rQm8bae5ncRGxzeDxwi6Ewu9z5xfVbPK",                  //cloudflare
 
 		"GROQ_API_KEY": "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",  //groq
-		"OPENAI_APadfadfI_KEY": "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", //openai
+		"OPENAI_API_KEY": "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", //openai
 		"GEMINI_API_KEY": "AIzaSyCCrKHwXB40VqR9TfsjZb7mdav0Pp0forc",          //google
 
 		"LLM_MODEL": "gemini-2.0-flash-lite",				     	     	                      //cloudflare	
