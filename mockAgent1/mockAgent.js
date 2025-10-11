@@ -16,42 +16,71 @@ const rl = readline.createInterface({
  */
 function buildNASRequest(input) {
   return {
-    clientId: 'client123',
-    agentId: 'novaCaptureAgent',
+    clientId: 'testClient1',
+    agentId: 'CaptureAgent1',
 
-    // System/User prompts
-    systemPrompt:
-      'You are an AI assistant. Be short, precise, and save tokens.',
+    systemPrompt: `You are a chatbot working on the webiste of Highnoon Solar, a solar energy solutions provider. Your task is to assist users with information about solar energy, products, and services offered by Highnoon Solar. Provide accurate and helpful responses based on the information you get from the srs tool. You will use srs everytime to get information regarding user query and then answer the user query based on that information. If you are unable to find the information, politely inform the user that you do not have the answer at the moment.`,
     userPrompt: input,
 
-    // Memory & scratchpad
     useScratchpad: true,
-    memoryType: 'dynamic', // could be buffer | summary | dynamic
-    limitTurns: 3,
-    summarizer: {
-      temperature: 0.3,
-      maxOutputTokens: 200,
-      totalTokenBudget: 712,
-      reserveForOutput: 500,
-      provider: 'groq',
-      api_key: process.env.API_KEY,
-      model: 'llama3-70b-8192',
-    }, // Summarizer config (for memory reduction if needed)
+    memoryType: 'dynamic',
+    limitTurns: 4,
 
-    // Available tools
-    tools: {
-      search: { description: 'Search the web for latest information' },
-      calculator: { description: 'Do financial calculations' },
+    adapter: {
+      kvNamespace: 'KV_NAMESPACE',
+      namespaceId: '',
+      aiBinding: 'AI_BINDING',
+      accountId: 'ec758d282b2c89b4a1a147b64f445849',
+      apiToken: 'NhQdSUiyJY2UFErA3xkcEsPN_IwWB4Z1hPx-KWXV',
     },
 
-    // LLM provider setup
-    provider: 'groq',
-    model: 'llama3-70b-8192', // Groq model
-    temperature: 0.7,
-    maxOutputTokens: 512,
-    estCharsPerToken: 4,
-    verbose: false,
-    api_key: process.env.API_KEY,
+    summarizer: {
+      maxOutputTokens: 200,
+      totalTokenBudget: 712,
+      reserveForOutput: 700,
+      llmConfig: {
+        // llmConfig is used in ctxmanager to configure llm for SRS calls
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        verbose: true,
+        api_keys: {
+          groq: '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',
+          openai:
+            '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',
+          gemini: 'AIzaSyCCrKHwXB40VqR9TfsjZb7mdav0Pp0forc',
+        },
+        // cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_API_KEY },
+      },
+    },
+
+    tools: {},
+
+    // provider: env.LLM_PROVIDER,
+    llmConfig: {
+      // llmConfig is used in ctxmanager to configure llm for SRS calls
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.7,
+      maxOutputTokens: 512,
+      estCharsPerToken: 4,
+      verbose: true,
+      api_keys: {
+        groq: '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',
+        openai:
+          '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',
+        gemini: 'AIzaSyCCrKHwXB40VqR9TfsjZb7mdav0Pp0forc',
+      },
+      // cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_API_KEY },
+    },
+    ragProvider: null,
+    RAGPrecontext: null,
+    pipelines: {
+      solarInstall: {
+        binding: 'solar-install',
+        description: 'Docs about installing solar systems',
+      },
+    },
+
+    maxToolLoop: 6,
   };
 }
 
@@ -94,8 +123,9 @@ async function main() {
     const pipeline = new Pipeline(request, 'parsed');
 
     // Run pipeline
+    // const result = JSON.stringify(await pipeline.run(), null, 2);
     const result = await pipeline.run();
-    console.log(result);
+    console.log({ result });
 
     rl.prompt();
   });

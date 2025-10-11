@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NAS Agent</title>
+  <style>
+/* ===============================
+   Global Styles (Apple Vibes)
+=============================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "San Francisco", "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f5f5f7;
+  color: #1d1d1f;
+}
+
+/* ===============================
+   Chat Container
+=============================== */
+.chat-container {
+  width: 95%;
+  max-width: 600px;
+  height: 85vh;
+  background: #fff;
+  border-radius: 28px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* ===============================
+   Header
+=============================== */
+.chat-header {
+  padding: 1.2rem;
+  background: #fafafa;
+  font-size: 1.3rem;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  color: #111;
+  letter-spacing: -0.3px;
+}
+
+/* ===============================
+   Messages
+=============================== */
+.chat-messages {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.2) transparent;
+}
+
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.15);
+  border-radius: 4px;
+}
+
+/* Message Bubbles */
+.message {
+  max-width: 75%;
+  padding: 0.8rem 1.1rem;
+  border-radius: 18px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  animation: fadeInUp 0.3s ease;
+  word-wrap: break-word;
+}
+
+/* User Message (blue bubble like iMessage) */
+.message.user {
+  margin-left: auto;
+  background: linear-gradient(135deg, #007aff, #0066cc);
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+
+/* Bot Message (light grey bubble) */
+.message.bot {
+  margin-right: auto;
+  background: #f2f2f7;
+  color: #111;
+  border-bottom-left-radius: 6px;
+}
+
+/* ===============================
+   Input Area
+=============================== */
+.chat-input {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #fafafa;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 0.9rem 1.2rem;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  outline: none;
+  background: #fff;
+  color: #1d1d1f;
+  font-size: 1rem;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chat-input input:focus {
+  border-color: #007aff;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+.chat-input button {
+  padding: 0.9rem 1.4rem;
+  border: none;
+  border-radius: 20px;
+  background: #007aff;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.chat-input button:hover {
+  background: #0066cc;
+  transform: translateY(-1px);
+}
+
+/* ===============================
+   Animations
+=============================== */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===============================
+   Responsive
+=============================== */
+@media (max-width: 768px) {
+  .chat-container {
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .chat-header {
+    font-size: 1.1rem;
+    padding: 1rem;
+  }
+
+  .message {
+    font-size: 0.9rem;
+  }
+
+  .chat-input input {
+    font-size: 0.9rem;
+  }
+
+  .chat-input button {
+    padding: 0.7rem 1.1rem;
+  }
+}
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="chat-header">Nova Testing Window<br> <span style="color: #007aff; font-size: 70%;">by Godwin Austen Labs</span></div>
+    <div id="chat" class="chat-messages"></div>
+
+    <div class="chat-input">
+      <input id="user-input" type="text" placeholder="Type your message..." />
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+
+  <script>
+  // --- CHAT LOGIC ---
+  const WORKER_URL = "http://localhost:8787"; // Your worker URL
+  // const WORKER_URL = "https://nova-capture.saadnaik.workers.dev"; // Your worker URL
+  const chatLog   = document.getElementById('chat');
+  const userInput = document.getElementById('user-input');
+  const sendBtn   = document.getElementById('send-btn');
+
+  function appendMessage(text, sender) {
+    const msg = document.createElement('div');
+    msg.classList.add('message', sender);
+    msg.setAttribute('data-sender', sender === 'user' ? 'USER' : 'NOVA');
+    msg.textContent = text;
+    chatLog.appendChild(msg);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  async function sendMessage() {
+    const text = userInput.value.trim();
+    if (!text) return;
+    appendMessage(text, 'user');
+    userInput.value = '';
+    try {
+      const res = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userPrompt: text })
+      });
+      if (!res.ok) {
+        appendMessage(`Error: Connection refused by host [${res.status}]`, 'bot');
+        console.log(res)
+        return;
+      }
+      const data  = await res.json();
+      const reply = typeof data.result === 'string'
+        ? data.result
+        : JSON.stringify(data.result, null, 2);
+      appendMessage(reply, 'bot');
+    } catch (err) {
+      appendMessage(`SYSTEM OFFLINE // ${err.message}`, 'bot');
+    }
+  }
+
+  // Single, correct event bindings
+  sendBtn.addEventListener('click', sendMessage);
+  userInput.addEventListener('keypress', e => {
+    if (e.key === 'Enter') sendMessage();
+  });
+</script>
+</body>
+</html>

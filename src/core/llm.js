@@ -1,154 +1,286 @@
-// ===============================
-// File: llm.js (refactored, commented, verbose added)
-// ===============================
-import 'dotenv/config';
+// ======================================================
+// File: llm.js
+// Purpose: Unified LLM API handler with Cloudflare Gateway
+// Supports: Groq, OpenAI, Gemini
+// ======================================================
+
 import fetch from 'node-fetch';
+import OpenAI from 'openai';
 
 /**
- * ChatLLM
- * Lightweight LLM wrapper with Groq-compatible endpoint.
- * Takes 7 Config Variables and 2 Runtime Variables.
- * Use .chat(userInput, options) to chat.
- *
- * @param {string} [provider] - (Config) Provider type ("groq" | "anthropic" | "gemini" | "openai").
- * @param {string} [model] - (Config) Model identifier string.
- * @param {string} [groq_api_key] - (Config) API key for Groq endpoint.
- * @param {number} [temperature=0.7] - (Config) Sampling temperature.
- * @param {number} [maxOutputTokens=1024] - (Config) Max tokens in completion.
- * @param {number} [estCharsPerToken=4] - (Config) Estimate for tokenizer fallback.
- * @param {boolean} [verbose=true] - (Config) Whether to log requests/responses.
- * @param {object} [options] - (Runtime) Additional options for the request. (e.g. temperature, maxOutputTokens, verbose)
- * @param {object} [userInput] - (Runtime) Input object { user, system }.
- * @return {Promise<{ text: string, tokensUsed: number, raw?: Object }>} - LLM's reponse raw and text with tokenUsed
- */
+@param {Object} config
+@param {string} config.model - The model to use (e.g., "groq", "openai", "gemini").
+@param {number} config.temperature - The sampling temperature to use (default: 0.7).
+@param {number} config.maxOutputTokens - The maximum number of tokens to generate (default: 1024).
+@param {boolean} config.verbose - Whether to enable verbose logging (default: false).
+@param {Object} config.api_keys - API keys for different providers. {groq, openai, gemini}
+@param {Object} config.cloudflare - Cloudflare Gateway configuration. {accountId, gatewayId, cfAIGToken}
+**/
+
 export class ChatLLM {
   constructor(config = {}) {
-    /**
-     * Keep original fields but add sensible defaults to avoid undefined issues.
-     * Added `verbose` flag for debugging payloads and responses.
-     */
-
-    this.estCharsPerToken = config.estCharsPerToken || 4; // default fallback used by estimateTokens
+    this.model = config.model;
     this.temperature = config.temperature || 0.7;
     this.maxOutputTokens = config.maxOutputTokens || 1024;
-    this.verbose = config.verbose || false; // 👈 new: toggle verbose logging
-    this.apiKey = config.api_key; // original behavior
-    this.model = config.model;
-    this.provider = config.provider;
-    this._lastRawData = null; // store last raw API response
+    this.verbose = config.verbose || false;
+    this.groqAPIKey = config.api_keys?.groq || null;
+    this.openaiAPIKey = config.api_keys?.openai || null;
+    this.geminiAPIKey = config.api_keys?.gemini || null;
+    this.accountId = config.cloudflare?.accountId || null;
+    this.gatewayId = config.cloudflare?.gatewayId || null;
+    this.cfAIGToken = config.cloudflare?.cfAIGToken || null;
+    this._lastRawData = null; // store last raw response for debugging
   }
-  /**
-   * estimateTokens
-   * Estimate number of tokens for a given string.
-   *
-   * @param {string} [str=''] - Input text.
-   * @returns {number} Estimated token count.
-   */
+
   estimateTokens(str = '') {
-    // Default Tokenizer: simple char/estCharsPerToken heuristic
-    const est = Number(this.estCharsPerToken) || 4;
-    return Math.ceil((str || '').length / est);
+    return Math.ceil((str || '').length / 4);
   }
-  /**
-   * chat
-   * Dispatch chat request to selected provider.
-   *
-   * @param {Object} userInput - Pipeline input { user, system }.
-   * @param {Object} [options] - Override settings { temperature, maxOutputTokens, verbose, returnRaw }.
-   * @returns {Promise<{ text: string, tokensUsed: number, raw?: Object }>}
-   */
-  /**
-   * Chat dispatcher
-   * @param {Object} userInput - expects { user, system } per pipeline
-   * @param {Object} options - optional settings
-   * @returns {Object} - { text, tokensUsed } or { text, tokensUsed, raw }
-   */
+
+  // ======================================================
+  // 🔹 Entry Point
+  // ======================================================
   async chat(userInput, options = {}) {
     const messages = [
-      { role: 'system', content: userInput.system },
-      { role: 'user', content: userInput.user },
+      { role: 'system', content: userInput.system || '' },
+      { role: 'user', content: userInput.user || '' },
     ];
 
-    const body = {
-      model: this.model,
-      temperature: options.temperature ?? this.temperature,
-      max_tokens: options.maxOutputTokens ?? this.maxOutputTokens,
-      messages,
-    };
-
-    // 🔍 Verbose: log the outgoing request
     if (this.verbose || options.verbose) {
-      console.log('\n================ VERBOSE: LLM REQUEST ================');
-      console.log(JSON.stringify(body, null, 2));
-      console.log('======================================================\n');
+      console.log('\n================ LLM REQUEST ================');
+      console.log(JSON.stringify({ model: this.model, messages }, null, 2));
+      console.log('=============================================\n');
     }
 
-    const provider = this.provider; // default to llama if not set
-    if (provider === 'groq') return this._callGroq(messages, options);
-    if (provider === 'anthropic') return this._callANTHROPIC(messages, options);
-    if (provider === 'gemini') return this._callGEMINI(messages, options);
-    if (provider === 'openai') return this._callGPT(messages, options);
-    throw new Error(`Unsupported provider: ${provider}`);
+    // Choose target model provider
+    const provider = this._detectProvider(this.model);
+
+    try {
+      switch (provider) {
+        case 'groq':
+          return await this._callGroq(messages, options);
+        case 'openai':
+          return await this._callOpenAI(messages, options);
+        case 'gemini':
+          return await this._callGemini(messages, options);
+        default:
+          throw new Error('Unknown model provider');
+      }
+    } catch (err) {
+      console.error('ChatLLM.chat error:', err);
+      return { text: '', tokensUsed: 0, error: err.message };
+    }
   }
 
-  /**
-   * _postToGroq
-   * Internal helper to POST request to Groq endpoint.
-   *
-   * @param {Array<Object>} messages - OpenAI-style messages [{ role, content }, ...].
-   * @param {Object} options - Request options (temperature, maxOutputTokens, verbose).
-   * @returns {Promise<{ text: string, tokensUsed: number, raw: Object }>}
-   * @throws {Error} If API key missing or request fails.
-   */
-  async _postToGroq(messages, options) {
-    if (!this.apiKey) {
-      // Keep original env var name & error semantics
-      throw new Error('Missing api.key in config variables');
+  _detectProvider(model) {
+    if (model?.includes('llama') || model?.includes('mixtral')) return 'groq';
+    if (model?.includes('gpt')) return 'openai';
+    if (model?.includes('gemini')) return 'gemini';
+    return 'openai';
+  }
+
+  // ======================================================
+  // 🔹 Cloudflare Gateway Handler
+  // ======================================================
+  async _callCloudflareGateway(provider, messages, model) {
+    if (!this.accountId || !this.gatewayId || !this.cfAIGToken) {
+      throw new Error('Missing Cloudflare Gateway configuration');
     }
 
+    const url = `https://gateway.ai.cloudflare.com/v1/${this.accountId}/${this.gatewayId}/compat/chat/completions`;
+
     const body = {
-      model: this.model,
-      temperature: options.temperature ?? this.temperature,
-      max_tokens: options.maxOutputTokens ?? this.maxOutputTokens,
-      messages,
+      model: `${provider}/${model}`,
+      temperature: this.temperature,
+      max_tokens: this.maxOutputTokens,
+      messages: messages,
     };
 
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${this.apiKey}`,
+        'cf-aig-authorization': `Bearer ${this.cfAIGToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
     });
 
     if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Groq API error: ${res.status} - ${errText}`);
+      const errText = await res.text().catch(() => '');
+      throw new Error(`CFAIG API error: ${res.status} - ${errText}`);
     }
 
-    const data = await res.json();
-    this._lastRawData = data; // store internally
+    const data = await res.json().catch((e) => {
+      throw new Error(`Failed to parse CFAIG JSON: ${e.message}`);
+    });
 
-    // 🔍 Verbose: log the raw response
-    if (this.verbose || options.verbose) {
-      console.log('\n================ VERBOSE: LLM RESPONSE ================');
+    const text = data?.choices?.[0]?.message?.content || '';
+    const usage = data?.usage || {};
+    // 🔧 Strip everything outside the first {...} block if JSON-like content exists
+    const output = this._extractJSON(text);
+
+    if (this.verbose) {
+      console.log(
+        `\n================ GATEWAY RESPONSE (${model}) ================`
+      );
       console.log(JSON.stringify(data, null, 2));
-      console.log('=======================================================\n');
+      console.log('=====================================================\n');
     }
 
-    const text =
-      data.choices?.[0]?.message?.content || data.choices?.[0]?.text || '';
-    const tokensUsed =
-      data.usage?.total_tokens ?? this.estimateTokens(JSON.stringify(body));
-
-    return { text, tokensUsed, raw: data };
+    return { text: output, usage, raw: data };
   }
 
+  // ======================================================
+  // 🔹 Groq (Llama / Mixtral)
+  // ======================================================
   async _callGroq(messages, options) {
-    // Preserve original message order (user then system)
-    const res = await this._postToGroq(messages, options);
-    const out = { res, text: res.text, tokensUsed: res.tokensUsed };
-    return out;
+    const model = this.model || 'llama3-8b-8192';
+
+    // Prefer Cloudflare Gateway
+    if (this.cfAIGToken) {
+      return await this._callCloudflareGateway('groq', messages, model);
+    }
+
+    // Fallback: Direct Groq API
+    const url = 'https://api.groq.com/openai/v1/chat/completions';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.groqAPIKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: this.temperature,
+      }),
+    });
+
+    const data = await res.json().catch((e) => {
+      throw new Error(`Failed to parse Groq JSON: ${e.message}`);
+    });
+
+    const text = data?.choices?.[0]?.message?.content || '';
+    const usage = data?.usage || {};
+    // 🔧 Strip everything outside the first {...} block if JSON-like content exists
+    const output = this._extractJSON(text);
+
+    if (this.verbose) {
+      console.log(`\n================ RESPONSE (${model}) ================`);
+      console.log(JSON.stringify(data, null, 2));
+      console.log('=====================================================\n');
+    }
+
+    return { text: output, usage, raw: data };
+  }
+
+  // ======================================================
+  // 🔹 OpenAI (GPT Models)
+  // ======================================================
+  async _callOpenAI(messages, options) {
+    const model = this.model || 'gpt-4o-mini';
+
+    // Prefer Cloudflare Gateway
+    if (this.cfAIGToken) {
+      return await this._callCloudflareGateway('openai', messages, model);
+    }
+
+    // Fallback: Direct OpenAI API
+    const client = new OpenAI({ apiKey: this.openaiAPIKey });
+    const completion = await client.chat.completions.create({
+      model,
+      messages,
+      temperature: this.temperature,
+    });
+
+    const text = completion.choices[0].message.content.trim();
+    const usage = completion.usage || {};
+
+    if (this.verbose) {
+      console.log(`\n================ RESPONSE (${model}) ================`);
+      console.log(JSON.stringify(json, null, 2));
+      console.log('=====================================================\n');
+    }
+
+    return { text, usage, raw: completion };
+  }
+
+  // ======================================================
+  // 🔹 Gemini (Google AI Studio)
+  // ======================================================
+  async _callGemini(messages, options) {
+    const model = this.model || 'gemini-2.0-flash';
+
+    // Prefer Cloudflare Gateway
+    if (this.cfAIGToken) {
+      return await this._callCloudflareGateway(
+        'google-ai-studio',
+        messages,
+        model
+      );
+    }
+
+    // Fallback: Direct Gemini API
+    const url =
+      'https://generativelanguage.googleapis.com/v1beta/models/' +
+      `${model}:generateContent?key=${this.geminiAPIKey}`;
+
+    const body = {
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: messages.map((m) => m.content).join('\n') }],
+        },
+      ],
+      generationConfig: { temperature: this.temperature },
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Gemini API error: ${res.status} - ${errText}`);
+    }
+
+    const data = await res.json().catch((e) => {
+      throw new Error(`Failed to parse Gemini JSON: ${e.message}`);
+    });
+
+    this._lastRawData = data;
+
+    if (this.verbose || options.verbose) {
+      console.log(
+        '\n================ VERBOSE: LLM RESPONSE (GEMINI) ================'
+      );
+      console.log(JSON.stringify(data, null, 2));
+      console.log(
+        '===============================================================\n'
+      );
+    }
+
+    // Extract and clean the model's text output
+    let text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // 🔧 Strip everything outside the first {...} block if JSON-like content exists
+    const output = this._extractJSON(text);
+
+    const usage = data?.usageMetadata || {};
+    return { text: output, usage, raw: data };
+  }
+
+  // ======================================================
+  // 🧹 Clean JSON Extraction Utility
+  // ======================================================
+  _extractJSON(text) {
+    if (!text) throw new Error('Empty response text');
+
+    // 1️⃣ Remove code fences and unwanted markdown
+    const match = text.match(/{[\s\S]*}/);
+    if (match) {
+      text = match[0].trim();
+      return text;
+    }
   }
 }

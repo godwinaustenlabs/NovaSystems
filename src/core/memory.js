@@ -1,126 +1,273 @@
-// ===============================
-// File: memory.js (extended with pluggable providers)
-// ===============================
-import { ChatLLM } from './llm.js';
+// ======================================================
+// File: memory.js
+// Purpose: Memory Manager with pluggable NAS adapters (e.g. Cloudflare KV)
+// Supports buffer, summary, and dynamic memory strategies
+// ======================================================
 
-/** Default in-memory store */
-const _RAM = new Map();
+import { ChatLLM } from './llm.js';
+import CloudflareKVAdapter from '../adapters/CloudflareKVAdapter.js';
+import { parseRAW } from './parser.js';
+
+// ======================================================
+// In-memory stores (local runtime caches)
+// ======================================================
+const _RAM = new Map(); // Active conversational memory per client-agent
+const _BaseStore = new Map(); // Long-term memory history (before KV persistence)
 const _key = (client_id, agent_id) => `${client_id}:${agent_id}`;
 
-// Local helper
+// Utility: Estimate tokens based on rough char count
 const estimateTokensLocal = (str = '', estCharsPerToken = 4) => {
   const est = Number(estCharsPerToken) || 4;
   return Math.ceil(String(str).length / est);
 };
 
-/**
- * Memory class for storing/retrieving state across agent runs.
- * Needs 8 Config Parameters and 1 runtime funtion parameters for save function.
- * Use .load() and .save(turn) to interact with memory.
- *
- * @param {String} clientId - (Config) Unique identifier for the client.
- * @param {String} agentId - (Config) Unique identifiers for the client and agent.
- * @param {String} memoryType - (Config) Type of memory to use (buffer, summary, etc.).
- * @param {number} limitTurns - (Config) Options for configuring memory behavior.
- * @param {Object} summarizerCfg - (Config) Configuration for summarization (temperature, maxOutputTokens, totalTokenBudget, reserveForOutput).
- * @param {Object} provider - (Config) LLM Provider (e.g., OpenAI, Groq).
- * @param {string} api_key - (Config) API key for the memory provider.
- * @param {string} model - (Config) Model to use for memory (e.g., 'llama3-70b-8192', 'gpt-4-o-mini').
- * @param {Object} turns - (Runtime) Turns are conversations, you want to save individually for user and assistant, pass in save.
- * @returns { turns: Array, summary: string } - Memory instance with .load() methods.
- */
+// ======================================================
+// 🔌 Adapter Wrapper (NAS abstraction layer)
+// ======================================================
+class AdapterWrapper {
+  constructor(config = {}) {
+    this.agentId = config.agentId;
+    this.clientId = config.clientId;
+    this.adapter = new CloudflareKVAdapter(config);
+  }
+
+  /**
+   * Save payload to external NAS adapter (e.g. Cloudflare KV)
+   * @param {object} payload - Data to persist (turns + summary)
+   */
+  async saveNAS(payload) {
+    if (!this.adapter?.save) return;
+    try {
+      await this.adapter.save(payload);
+    } catch (err) {
+      console.error(
+        `[AdapterWrapper] saveNAS failed: ${err.message}, Stack: ${err.stack}`
+      );
+    }
+  }
+
+  /**
+   * Load recent conversation entries from NAS
+   * @param {number} n - Number of entries to fetch
+   */
+  async loadNAS(n) {
+    if (!this.adapter?.load) return null;
+    try {
+      return await this.adapter.load(100); // clutter: fixed hardcoded limit
+    } catch (err) {
+      console.error(`[AdapterWrapper] loadNAS failed: ${err.message}`);
+      return null;
+    }
+  }
+}
+
+// ======================================================
+// 🧩 Main Memory Manager
+// ======================================================
 export class Memory {
+  /**
+   * @param {object} config
+   * @param {string} config.clientId
+   * @param {string} config.agentId
+   * @param {'buffer'|'summary'|'dynamic'} [config.memoryType]
+   * @param {number} [config.limitTurns]
+   * @param {object} [config.summarizer]
+   * @param {string} [config.provider]
+   * @param {string} [config.api_key]
+   * @param {string} [config.model]
+   * @param {object} [config.adapter]
+   */
   constructor(config = {}) {
     this.clientId = config.clientId;
     this.agentId = config.agentId;
-    this.memoryType = String(config.memoryType).toLowerCase();
-    this.limitTurns = Number(config.limitTurns);
-    this.summarizerCfg = config.summarizer;
-    this.provider = config.provider;
-    this.API_KEY = config.api_key;
-    this.model = config.model;
+    this.memoryType = String(config.memoryType || 'buffer').toLowerCase();
+    this.limitTurns = Number(config.limitTurns) || 10;
+    this.summarizerCfg = {
+      temperature: config.summarizer?.temperature || 0.7,
+      maxOutputTokens: config.summarizer?.maxOutputTokens || 200,
+      totalTokenBudget: config.summarizer?.totalTokenBudget || 712,
+      reserveForOutput: config.summarizer?.reserveForOutput || 700,
+      llmConfig: config.summarizer?.llmConfig || {},
+    };
+    this.kvNamespace = config.kvNamespace || null;
 
+    // Wrap NAS adapter
+    this.adapterWrapper = new AdapterWrapper({
+      kvNamespace: this.kvNamespace,
+      agentId: this.agentId,
+      clientId: this.clientId,
+    });
+
+    // Initialize memory strategy
     this.memory = this._initMemory(this.memoryType);
   }
+
+  /**
+   * Initialize selected memory strategy
+   */
   _initMemory(type) {
     switch (type) {
-      case 'nomemory':
-        return new NoMemory();
       case 'summary':
-        return new SummaryMemory(this.summarizerCfg, this.limitTurns);
-      case 'kv':
-        return new KVMemoryExternal(this.provider); // now uses provider
-      case 'vector':
-        return new VectorMemory(this.provider);
+        return new SummaryMemory(this._summarizer.bind(this), this.limitTurns);
       case 'dynamic':
-        return new DynamicMemory(this.summarizerCfg);
+        return new DynamicMemory(
+          this._summarizer.bind(this),
+          this.summarizerCfg
+        );
+      case 'buffer':
       default:
         return new BufferMemory(this.limitTurns);
     }
   }
+
   /**
-   * load
-   * Retrieve a value from memory.
-   *
-   * @param {string} key - Unique identifier for the memory value.
-   * @returns {Promise<any>} The stored value, or undefined if not found.
+   * Internal summarizer using ChatLLM
+   */
+  async _summarizer() {
+    const k = _key(this.clientId, this.agentId);
+    const data = _RAM.get(k);
+    const text = data.turns.map((t) => `[${t.role}] ${t.content}`).join('\n');
+    const messages = [
+      {
+        role: 'system',
+        content:
+          'Summarize conversation concisely while preserving context and important details.',
+      },
+      {
+        role: 'user',
+        content: `Summarize this:\n${text}\n\nSummarize previous summary too: "${data.summary}"`,
+      },
+    ];
+
+    const llm = new ChatLLM({ ...this.summarizerCfg.llmConfig });
+
+    const res = await llm.chat({
+      user: messages[1].content,
+      system: messages[0].content,
+    });
+
+    data.summary = await parseRAW(res.raw);
+    data.turns = data.turns.slice(-4);
+    _RAM.set(k, data);
+    return res;
+  }
+
+  /**
+   * SMS Search Memory — search previous turns for a query
+   * @param {string} query - Text to search
+   * @param {number} topK - Number of top matches to return
+   */
+  async sms(query, topK) {
+    const smsResults = [];
+    if (query) {
+      let s = 1;
+      let turns =
+        _BaseStore.get(_key(this.clientId, this.agentId))?.turns || [];
+
+      for (const t of turns) {
+        if (
+          typeof t.content === 'string' &&
+          t.content.toLowerCase().includes(query.toLowerCase())
+        ) {
+          smsResults.push({
+            id: `mem:${Math.random().toString(36).slice(2, 9)}`,
+            score: s,
+            text: t.content,
+            metadata: { role: t.role },
+          });
+          s = s + 1;
+        }
+      }
+    }
+
+    const Results = { SMS: smsResults.slice(0, topK) };
+    return Results;
+  }
+
+  /**
+   * Load memory into RAM (rehydrate from KV adapter if missing)
    */
   async load() {
-    try {
-      return await this.memory.load(this.clientId, this.agentId);
-    } catch (err) {
-      console.error(`[Memory] Load failed: ${err.message}`);
-      return { turns: [], summary: '' };
+    const k = _key(this.clientId, this.agentId);
+    let data = _RAM.get(k);
+
+    if (!data) {
+      const extData = await this.adapterWrapper.loadNAS(6);
+      if (extData && Array.isArray(extData)) {
+        const merged = {
+          turns: extData.flatMap((e) => e.payload?.turns || []),
+          summary: extData.at(-1)?.payload?.summary || '',
+        };
+        _BaseStore.set(k, merged);
+        const mem = _BaseStore.get(k);
+        if (mem?.turns?.length) {
+          const limitTurns = mem.turns.slice(-this.limitTurns);
+          const RAM = { turns: limitTurns, summary: mem.summary || '' };
+          _RAM.set(k, RAM);
+          return { data: RAM, tokensUsedByMemory: null };
+        }
+      }
     }
+
+    return { data: data, tokensUsedByMemory: null };
   }
+
   /**
-   * save
-   * Store a value in memory.
-   *
-   * @param {string} key - Unique identifier for the memory value.
-   * @param {any} value - Value to be stored (JSON-serializable).
-   * @returns {actualTokensUsed: number, estimatedTokensUsed: number}
+   * Save a new conversational turn to memory + persist externally
+   * @param {object} turn - Chat message { role, content }
    */
   async save(turn) {
     try {
+      const k = _key(this.clientId, this.agentId);
+      let tokensInfo = null;
+
+      // Handle different memory types
       if (this.memory instanceof DynamicMemory) {
-        const tokens =
-          (await this.memory.saveAndMaybeSummarize(
-            this.clientId,
-            this.agentId,
-            turn
-          )) || {};
-        return {
-          actualTokensUsed: tokens.actualTokensUsed,
-          estimatedTokensUsed: tokens.estimatedTokensUsed,
-        };
-      }
-      if (typeof this.memory.summarizeIfNeeded === 'function') {
-        await this.memory.save(this.clientId, this.agentId, turn);
-        const summarizerOutput = await this.memory.summarizeIfNeeded(
+        tokensInfo = await this.memory.saveAndMaybeSummarize(
           this.clientId,
-          this.agentId
-        ); //memory call to Summary Memory outputs the tokens Used and automatically appends the summary to the map which is later loaded by the load method
-        const actualTokensUsed = summarizerOutput?.tokensUsedByMemory;
-        return { actualTokensUsed }; //method in-case of Summary Memory returns the amount of tokens used to summarize the conversation
+          this.agentId,
+          turn
+        );
+      } else if (typeof this.memory.summarizeIfNeeded === 'function') {
+        tokensInfo = await this.memory.summarizeIfNeeded(
+          this.clientId,
+          this.agentId,
+          turn
+        );
       } else {
         await this.memory.save(this.clientId, this.agentId, turn);
       }
+
+      // Persist to NAS adapter
+      const mem = _RAM.get(k);
+      if (mem?.turns?.length) {
+        const lastTwo = mem.turns.slice(-2);
+        const toPersist = { turns: lastTwo, summary: mem.summary || '' };
+        await this.adapterWrapper.saveNAS(toPersist);
+      }
+
+      // Update base store (historical memory)
+      const b = _key(this.clientId, this.agentId);
+      _BaseStore.get(b).turns.push(turn);
+
+      if (_BaseStore.get(b).turns.length > 100) {
+        const slice = _BaseStore.get(b).turns.slice(-100);
+        _BaseStore.set(b, { turns: slice, summary: _BaseStore.get(b).summary });
+      }
+
+      return {
+        tokensUsedByMemory: tokensInfo?.tokensUsedByMemory || null,
+        estimatedTokensUsed: tokensInfo?.estimatedTokensUsed || null,
+      };
     } catch (err) {
-      console.error(`[Memory] Save failed: ${err.message}`);
+      console.error(`[Memory] Save failed: ${err.message}, ${err.stack}`);
     }
   }
 }
 
-export class NoMemory {
-  async load() {
-    return { turns: [], summary: '' };
-  }
-  async save() {
-    return null;
-  }
-}
-
+// ======================================================
+// 🧱 Memory Strategy Implementations
+// ======================================================
 export class BufferMemory {
   constructor(limitTurns) {
     this.limitTurns = limitTurns;
@@ -128,157 +275,91 @@ export class BufferMemory {
 
   async load(clientId, agentId) {
     const k = _key(clientId, agentId);
-    const data = _RAM.get(k) || { turns: [], summary: '' };
-    return {
-      turns: data.turns,
-      summary: data.summary || '',
-    };
+    return _RAM.get(k) || { turns: [], summary: '' };
   }
 
   async save(clientId, agentId, turn) {
     const k = _key(clientId, agentId);
     const data = _RAM.get(k) || { turns: [], summary: '' };
 
-    if (Array.isArray(turn)) {
-      for (const t of turn) data.turns.push(t);
-    } else if (turn) {
-      data.turns.push(turn);
-    }
+    if (Array.isArray(turn)) data.turns.push(...turn);
+    else if (turn) data.turns.push(turn);
 
     if (data.turns.length > this.limitTurns) {
       data.turns = data.turns.slice(-this.limitTurns);
     }
     _RAM.set(k, data);
-    return { turns: [...data.turns], summary: data.summary || '' };
+    return data;
   }
 }
 
+// ======================================================
+// 🧩 Summary Memory Strategy (auto-summarizes past turns)
+// ======================================================
 export class SummaryMemory extends BufferMemory {
-  constructor(summarizerCfg, limitTurns) {
+  constructor(summarizer, limitTurns) {
     super(limitTurns);
-    this.summarizerCfg = summarizerCfg;
-    this.provider = summarizerCfg.provider;
-    this.model = summarizerCfg.model;
-    this.api_key = summarizerCfg.api_key;
+    this.summarizer = summarizer;
+  }
+
+  async summarizeIfNeeded(clientId, agentId, turn) {
+    await this.save(clientId, agentId, turn);
+
+    const k = _key(clientId, agentId);
+    const data = _RAM.get(k);
+    if (!data || data.turns.length < this.limitTurns) return;
+
+    const res = await this.summarizer();
+
+    return {
+      tokensUsedByMemory: {
+        input: res.usage.prompt_tokens,
+        output: res.usage.completion_tokens,
+      },
+      estimatedTokensUsageByMemory: null,
+    };
+  }
+}
+
+// ======================================================
+// 🧮 Dynamic Memory (auto-manages token budget)
+// ======================================================
+export class DynamicMemory extends BufferMemory {
+  constructor(summarizer, summarizerCfg) {
+    super(500);
+    this.memoryBudgetTokens =
+      summarizerCfg.totalTokenBudget - summarizerCfg.reserveForOutput;
+    this.summarizer = summarizer;
+    this.maxOutputTokens = summarizerCfg.maxOutputTokens;
+  }
+
+  async saveAndMaybeSummarize(clientId, agentId, turn) {
+    await this.save(clientId, agentId, turn);
+    const context = await this.buildContextMessages(clientId, agentId);
+    const approx = context.ExpectedUsedTokens;
+    if (this.memoryBudgetTokens * 0.95 < approx) {
+      const summarizerOutput = await this.summarizeIfNeeded(clientId, agentId);
+      return {
+        tokensUsedByMemory: summarizerOutput?.tokensUsedByMemory,
+        estimatedTokensUsageByMemory: approx,
+      };
+    }
+    return { tokensUsedByMemory: null, estimatedTokensUsageByMemory: approx };
   }
 
   async summarizeIfNeeded(clientId, agentId) {
     const k = _key(clientId, agentId);
     const data = _RAM.get(k);
-    if (!data || data.turns.length < this.limitTurns) {
-      return;
-    }
+    if (!data) return;
+    const res = await this.summarizer();
 
-    const text = data.turns.map((t) => `[${t.role}] ${t.content}`).join('\n');
-    const messages = [
-      {
-        role: 'system',
-        content:
-          'You compress conversation into a very, very concise factual summary, saving token is necessary, make sure you mention the user and ai convo but at the same time use minimum token, output in a paragraph but keep the context.',
-      },
-      {
-        role: 'user',
-        content: `Summarize this:\n${text}\n\nKeep under 500 words including previous summary's context "${data.summary}", don't lose any info.`,
-      },
-    ];
-    const llm = new ChatLLM({
-      provider: this.provider,
-      model: this.model,
-      temperature: this.summarizerCfg.temperature,
-      maxOutputTokens: this.summarizerCfg.maxOutputTokens,
-      estCharsPerToken: 4,
-      api_key: this.api_key,
-    });
-
-    const res = await llm.chat({
-      user: messages[1].content,
-      system: messages[0].content,
-    });
-
-    data.summary = res.text;
-    data.turns = data.turns.slice(-2); // keep last 2 turns for context
-    _RAM.set(k, data);
-    return { data, tokensUsedByMemory: res.tokensUsed || null };
-  }
-}
-
-//new dynamic memory
-export class DynamicMemory extends BufferMemory {
-  constructor(summarizerCfg) {
-    super(100);
-    this.memoryBudgetTokens =
-      summarizerCfg.totalTokenBudget - summarizerCfg.reserveForOutput;
-    this.provider = summarizerCfg.provider;
-    this.model = summarizerCfg.model;
-    this.api_key = summarizerCfg.api_key;
-    this.temperature = summarizerCfg.temperature;
-    this.maxOutputTokens = summarizerCfg.maxOutputTokens;
-  }
-  async saveAndMaybeSummarize(clientId, agentId, turn) {
-    try {
-      // Step 1: Save turn
-      await this.save(clientId, agentId, turn);
-
-      // Step 2: Always build context memory after saving
-      const context = await this.buildContextMessages(clientId, agentId);
-
-      // Step 3: If we exceed the limit, trigger summarization
-      const approx = context.ExpectedUsedTokens;
-      if (this.memoryBudgetTokens * 0.95 < approx) {
-        console.log('Approx tokens used: ', approx);
-        const summarizerOutput = await this.summarizeIfNeededforDynamic(
-          clientId,
-          agentId
-        );
-        return (
-          {
-            actualTokensUsed: summarizerOutput.tokensUsedByMemory,
-            estimatedTokensUsed: approx,
-          } || 0
-        );
-      }
-      return { estimatedTokensUsed: approx } || 0;
-    } catch (err) {
-      console.error(
-        `[DynamicMemory] saveAndMaybeSummarize failed: ${err.message}`
-      );
-      return null;
-    }
-  }
-  async summarizeIfNeededforDynamic(clientId, agentId) {
-    const k = _key(clientId, agentId);
-    const data = _RAM.get(k);
-
-    const text = data.turns.map((t) => `[${t.role}] ${t.content}`).join('\n');
-    const messages = [
-      {
-        role: 'system',
-        content:
-          'You compress conversation into a very, very concise factual summary, saving token is necessary, make sure you mention the user and ai convo but at the same time use minimum token, output in a paragraph but keep the context.',
-      },
-      {
-        role: 'user',
-        content: `Summarize this:\n${text}\n\nKeep under 500 words including previous summary's context "${data.summary}", don't lose any info.`,
-      },
-    ];
-    const llm = new ChatLLM({
-      provider: this.provider,
-      model: this.model,
-      temperature: this.temperature,
-      maxOutputTokens: this.maxOutputTokens,
-      estCharsPerToken: 4,
-      api_key: this.api_key,
-    });
-
-    const res = await llm.chat({
-      user: messages[1].content,
-      system: messages[0].content,
-    });
-
-    data.summary = res.text;
-    data.turns = data.turns.slice(-2); // keep last 2 turns for context
-    _RAM.set(k, data);
-    return { tokensUsedByMemory: res.tokensUsed || null };
+    return {
+      tokensUsedByMemory:
+        {
+          input: res.usage.prompt_tokens,
+          output: res.usage.completion_tokens,
+        } || null,
+    };
   }
 
   async buildContextMessages(clientId, agentId) {
@@ -300,38 +381,5 @@ export class DynamicMemory extends BufferMemory {
     }
 
     return { messages, ExpectedUsedTokens: used };
-  }
-}
-// ===============================
-// Provider-backed memories (Stubs)
-// ===============================
-export class KVMemoryExternal {
-  constructor(provider) {
-    this.provider = provider; // e.g., Cloudflare KV binding
-  }
-
-  async load(clientId, agentId) {
-    const key = _key(clientId, agentId);
-    return (await this.provider.get(key)) || { turns: [], summary: '' };
-  }
-
-  async save(clientId, agentId, turn) {
-    const key = _key(clientId, agentId);
-    const data = (await this.provider.get(key)) || { turns: [], summary: '' };
-    if (Array.isArray(turn)) data.turns.push(...turn);
-    else if (turn) data.turns.push(turn);
-    await this.provider.set(key, data);
-  }
-}
-
-export class VectorMemory {
-  constructor(provider) {
-    this.provider = provider;
-  }
-  async load(clientId, agentId) {
-    return await this.provider.getContext(clientId, agentId);
-  }
-  async save(clientId, agentId, turn) {
-    await this.provider.insert(clientId, agentId, turn);
   }
 }

@@ -1,0 +1,32 @@
+{
+  // -----------------------------
+  // Project Info
+  // -----------------------------
+  "name": "nova-rag-worker",
+  "main": "src/index.js",        // or your actual entry file
+  "compatibility_date": "2025-09-20",
+  "compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 0.1
+	},
+
+  // -----------------------------
+  // Cloudflare AI binding
+  // -----------------------------
+  
+  "ai": {
+    "binding": "AI"
+  },
+
+  // -----------------------------
+  // Optional environment variables
+  // -----------------------------
+ "vars": {
+		"API_KEY": "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",
+		"LLM_PROVIDER": "groq",
+		"LLM_MODEL": "llama-3.3-70b-versatile"
+	}
+}

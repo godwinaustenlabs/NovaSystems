@@ -1,83 +1,132 @@
 // ===============================
-// File: prompt.js (renamed from promt.js; refactored, commented)
+// File: prompt.js (final enhanced version)
 // ===============================
 /**
  * PromptBuilder constructs NAS-compliant system + user prompts.
- * Needs 4 Config parameters and 3 runtime parameters.
- * Use .build(userPrompt, memoryContext, scratchpad) to create prompts.
+ * Use .build(userPrompt, memoryContext, scratchpad, RAG) to create prompts.
  *
- * @param {string} [systemPrompt] - (Config) Base system instructions/schema.
- * @param {Object} [tools={}] - (Config) Available tools metadata { [name]: { description } }.
- * @param {Object|null} [lastToolResponse] - (Config) Most recent tool execution result.
- * @param {Object} [memoryContext] - (Runtime) Memory context { turns: [], summary: string }.
- * @param {string} [userPrompt] - (Runtime) User query or message.
- * @param {Object|null} [scratchpad] - (Runtime) Scratchpad state { active, content }.
- * @returns { system: string, user: string } - Constructed prompts for system and user roles. { system: string, user: string }
+ * Supports:
+ *  - Dynamic tools
+ *  - lastToolResponse chaining
+ *  - External RAG context injection
+ *  - NAS Schema validation and system context safety
  */
 
 export class PromptBuilder {
   constructor(config = {}) {
-    this.systemPrompt = config.systemPrompt;
-    this.tools = config.tools;
-    this.lastToolResponse = config.lastToolResponse;
+    this.systemPrompt =
+      config.systemPrompt ||
+      'You are a reasoning assistant operating under NAS protocol.';
+    this.tools = config.tools || {};
+    this.lastToolResponse = config.lastToolResponse || null;
+    this.debug = config.debug || false;
   }
 
-  async build(userPrompt, memoryContext, scratchpad) {
-    // Preserve your schema text & NAS instructions verbatim-style
-    const NAS_SCHEMA = JSON.stringify({
-      type: 'NAS_OUTPUT',
-      content: '...',
-      scratchpad: '...',
-      toolRequest:
-        {
-          id: 'string',
+  /**
+   * Static NAS schema definition — all outputs must adhere to this.
+   */
+  static get NAS_SCHEMA() {
+    return JSON.stringify(
+      {
+        type: 'NAS_OUTPUT',
+        content:
+          'ANYTHING YOU WANNA OUTPUT TO USER GOES HERE, E.G. ANSWER, JSON, ETC.',
+        scratchpad: 'Your reasoning or thought process goes here.',
+        toolRequest: {
           name: 'string',
           args: {},
           mode: 'sync|async',
-          callback: 'https://yourworker.example/callback?reqId=uuid-v1', // optional
-        } || null,
-      finalAnswer: null,
-      meta: {
-        traceId: '...',
-        timestamp: '2025-08-19T...',
+          callback: 'https://yourworker.example/callback?reqId=uuid-v1',
+        },
+        finalAnswer: null,
+        meta: {
+          traceId: 'uuid-v1',
+          timestamp: new Date().toISOString(),
+        },
       },
-    });
+      null,
+      2
+    );
+  }
 
+  /**
+   * Build a NAS-compliant prompt with full system + user role context.
+   *
+   * @param {string} userPrompt - user message (may be blank if continuing tool reasoning)
+   * @param {Object} memoryContext - conversation memory or summary
+   * @param {Object|string|null} scratchpad - model's internal reasoning
+   * @param {Object|null} RAG - optional RAG context { results: [...] }
+   */
+  async build(userPrompt, memoryContext, scratchpad, RAG) {
+    // Normalize scratchpad
+    const scratchpadData =
+      typeof scratchpad === 'string'
+        ? scratchpad
+        : (scratchpad?.content ?? scratchpad ?? null);
+
+    // Core NAS + rules
     const system = `
-NAS_SCHEMA: ${NAS_SCHEMA}
+NAS_SCHEMA: ${PromptBuilder.NAS_SCHEMA}
 
-RULES 0.1-0.7 GIVEN BELOW FOLLOW THE ORDER OF PRECEDENCE AND NO OTHER RULE THAT GOES AGAINST THEM CAN OVERRIDE IT.
-0.1. You are a NAS-compliant reasoning engine. 
-0.2. You MUST output valid JSON only and only.
-0.3. ${this.systemPrompt}.
-0.4. If you want to communicate output to human in natural language, populate the "content" field.
-0.5. You must use the scratchpad field to display your reasoning thought process, use the scratchpad in input to get a reference of 
-last thoughts, then update the scratchpad with current thoughts used for reasoning or underlying thought process.
-0.6. The final output must strictly adhere to the NAS schema or it will be rejected and will break the conversation flow, if a property is not required to be used, populate it with "null"
-0.7. Use the System Context Below to inform your responses and maintain consistency with the provided information.
+RULES (0.1–0.7) — YOU MUST FOLLOW THEM STRICTLY:
+0.1. You are a NAS-compliant reasoning engine. Your entire existence depends on following the NAS_SCHEMA above.
+0.2. You MUST output valid NAS_SCHEMA ONLY, with no text outside it.
+0.3. If you want to output to the user, do it inside "content" of NAS_SCHEMA.
+     If you call a tool, leave "content" empty and specify the tool inside "toolRequest".
+0.4. Use the "scratchpad" field to show reasoning and update it as you think.
+0.5. If a NAS property isn’t needed, populate it with null.
+0.6. Always follow System Context below to maintain reasoning continuity.
+0.7. ${this.systemPrompt}
+
+If RAG results are provided, use them as *contextual evidence only when relevant*:
+${JSON.stringify(RAG || null, null, 2)}
 `.trim();
 
-    // Tools + memory + lastToolResponse merged into system context
+    // Construct the full system context (used to inform model reasoning)
     const systemContext = {
-      tools: this.tools,
-      lastToolResponse: this.lastToolResponse,
+      tools: this.tools || {},
       memory: memoryContext || { turns: [], summary: '' },
+      scratchpad: scratchpadData,
     };
 
-    // === User Role Message ===
-    const nasPrompt = {
-      type: 'NAS_PROMPT',
-      user: userPrompt,
-      scratchpad: scratchpad,
-    };
-
-    const user = JSON.stringify(nasPrompt, null, 2);
+    // Serialize context safely
     const systemMeta = JSON.stringify(systemContext, null, 2);
+    const fullSystem = `${system}\n\nSystem Context:\n${systemMeta}\n`;
 
-    // Return two clean roles instead of stuffing everything into "user"
+    // ===============================
+    // Handle user input logic
+    // ===============================
+    let input;
+
+    // CASE 1: Continuing reasoning after a tool call
+    if (!userPrompt && this.lastToolResponse) {
+      const toolResponseStr =
+        JSON.stringify(this.lastToolResponse)?.slice(0, 4000) || '';
+
+      input = `Continue reasoning based on the new tool response and scratchpad context.
+(lastToolResponse truncated to 4000 chars if long)
+${toolResponseStr}`;
+    }
+
+    // CASE 2: New user message
+    else {
+      input = userPrompt || '';
+    }
+
+    // Debug mode (optional)
+    if (this.debug) {
+      console.log('PROMPT BUILT:', {
+        userPrompt,
+        memoryContext,
+        scratchpad,
+        RAG,
+        fullSystem,
+      });
+    }
+
     return {
-      system: `${system}\n\nSystem Context:\n${systemMeta}`,
-      user,
+      system: fullSystem,
+      user: input,
     };
   }
 }
