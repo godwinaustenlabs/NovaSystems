@@ -32,7 +32,7 @@ async function choosePipeline({ query, pipelines, llmConfig }) {
   // Include the pipelines and user query in the LLM request.
   const userPrompt = `Available pipelines:\n${list}\n\nUser query: "${query}"\n\nRespond with one pipeline key.`;
 
-  // Invoke LLM chat model.
+  // Invoke LLM chat model
   const res = await llm.chat({ system: systemPrompt, user: userPrompt });
   console.log('[SRS] Pipeline choice LLM response:', res);
 
