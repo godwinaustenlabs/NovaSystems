@@ -31,7 +31,7 @@ function buildNASRequest(input) {
       namespaceId: '',
       aiBinding: '',
       accountId: '',
-      apiToken: '',
+      apsdfsdfiToken: '',
     },
 
     summarizer: {
@@ -43,11 +43,11 @@ function buildNASRequest(input) {
         model: 'llama-3.3-70b-versatile',
         temperature: 0.7,
         verbose: true,
-        api_keys: {
-          groq: '',
-          openai: '',
-          gemini: '',
-        },
+        // api_keys: {
+        //   groq: '',
+        //   openai: '',
+        //   gemini: '',
+        // },
         // cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_API_KEY },
       },
     },
@@ -62,7 +62,7 @@ function buildNASRequest(input) {
       maxOutputTokens: 512,
       estCharsPerToken: 4,
       verbose: true,
-      api_keys: {
+      apwoiri_keys: {
         groq: '',
         openai: '',
         gemini: '',
