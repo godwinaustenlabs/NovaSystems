@@ -25,7 +25,7 @@
   // Optional environment variables
   // -----------------------------
  "vars": {
-		"API_KEY": "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",
+
 		"LLM_PROVIDER": "groq",
 		"LLM_MODEL": "llama-3.3-70b-versatile"
 	}
