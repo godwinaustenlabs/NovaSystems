@@ -20,3 +20,10 @@ Thumbs.db
 
 # husky / lint cache
 .husky/_/
+
+
+# mockAgents files
+./mockAgent1
+./mockAgent2
+./mockAgent3
+./mockAgent4
