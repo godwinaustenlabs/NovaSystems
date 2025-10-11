@@ -73,7 +73,7 @@ export default {
 								verbose: true,
 								cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_API_KEY },
 
-								api_keys: { groq: env.GROQ_API_KEY, openai: env.OPENAI_API_KEY, gemini: env.GEMINI_API_KEY },
+								api_keys: { groq: env.GROQ_KEY, openai: env.OPENAI_KEY, gemini: env.GEMINI_KEY },
 							},
 						},
 					},
