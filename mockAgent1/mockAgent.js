@@ -64,10 +64,9 @@ function buildNASRequest(input) {
       estCharsPerToken: 4,
       verbose: true,
       api_keys: {
-        groq: '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',
-        openai:
-          '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',
-        gemini: 'AIzaSyCCrKHwXB40VqR9TfsjZb7mdav0Pp0forc',
+        groq: '',
+        openai: '',
+        gemini: '',
       },
       // cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_API_KEY },
     },
