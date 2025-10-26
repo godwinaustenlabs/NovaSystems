@@ -77,6 +77,7 @@ async function choosePipeline({ query, pipelines, llmConfig }) {
  * @param {Object} env - Cloudflare Worker environment (must include AI bindings).
  * @returns {Promise<string>} The response text from AutoRAG.
  */
+
 async function queryAutoRAG(binding, query, env) {
   // Validate Cloudflare AI binding existence.
   if (!env?.AI) {

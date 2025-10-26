@@ -48,7 +48,8 @@ export class ContextManager {
         params: { query: 'string', topK: 'number' },
       },
       SRS: {
-        description: 'Semantic RAG Search (vector DB router).',
+        description:
+          'Semantic RAG Search (To search smh from external sources).',
         params: { query: 'string', topK: 'number' },
       },
     };

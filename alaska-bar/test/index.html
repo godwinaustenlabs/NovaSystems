@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Alaska Bar — The Sweetest Scoops in Town</title>
+  <meta name="description"
+    content="Alaska Bar — Discover delicious, handcrafted ice cream. From classic vanilla to exotic new flavors, we're your home for sweet treats." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap"
+    rel="stylesheet">
+  <style>
+    /* -----------------------------
+       Nova — MOBILE REVAMP - Deep Tone (Refactored)
+       --- EDITED FOR ALASKA BAR (ICE CREAM THEME) ---
+       ------------------------------ */
+    :root {
+      /* New "Ice Cream" Palette */
+      --bg-900: #fdfcf7;
+      /* Creamy White */
+      --bg-800: #f0f8ff;
+      /* Ice Blue */
+      --panel: #ffffff;
+      /* Clean White */
+      --panel-strong: #f5f5f5;
+      /* Light Gray */
+      --muted: #4a2c2a;
+      /* Chocolate Brown (Text) */
+      --accent-a: #ff86ac;
+      /* Strawberry Pink */
+      --accent-b: #a0e6d2;
+      /* Mint Green */
+      --accent-c: #e66891;
+      /* Deep Pink/Berry */
+      --max-width: 1200px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    html {
+      scroll-behavior: smooth
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      /* Background changed to a simple cream color */
+      background: var(--bg-900);
+      color: var(--muted);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Floating neon flow shapes (backdrop) - HIDDEN for ice cream theme */
+    .neon-flow {
+      display: none;
+    }
+
+    /* faint animated grid lines - HIDDEN for ice cream theme */
+    .gridlines {
+      display: none;
+    }
+
+    /* Header - App-like, always visible, sleek */
+    header {
+      position: sticky;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px;
+      margin: 0 auto;
+      width: 100%;
+      background: rgba(253, 252, 247, 0.8);
+      /* Use cream tone with alpha */
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      backdrop-filter: blur(8px) saturate(1.2);
+    }
+
+    .nova-mark {
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: -0.01em;
+      background: linear-gradient(90deg, var(--accent-c), var(--accent-a));
+      /* Pink gradient */
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      /* Add subtle shadow for the "glow" */
+      text-shadow: 0 0 12px rgba(255, 134, 172, 0.4);
+    }
+
+    /* Mobile Nav Menu/Hamburger */
+    nav.nav.desktop {
+      display: none;
+    }
+
+    /* Hide desktop nav by default */
+
+    .menu-toggle {
+      display: block;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 4px;
+      z-index: 1001;
+    }
+
+    .menu-toggle .icon-bar {
+      display: block;
+      width: 24px;
+      height: 2px;
+      background: var(--accent-a);
+      /* Pink accent color */
+      margin: 5px 0;
+      transition: 0.4s;
+      border-radius: 1px;
+    }
+
+    .menu-toggle.open .bar1 {
+      transform: rotate(-45deg) translate(-5px, 6px);
+    }
+
+    .menu-toggle.open .bar2 {
+      opacity: 0;
+    }
+
+    .menu-toggle.open .bar3 {
+      transform: rotate(45deg) translate(-5px, -6px);
+    }
+
+    .nav.mobile {
+      position: fixed;
+      top: 0;
+      right: 0;
+      /* bottom: 0; */
+      width: 100%;
+      /* max-width: 300px; */
+      display: flex;
+      flex-direction: column;
+      background: rgba(253, 252, 247, 0.9);
+      /* Creamy background */
+      padding: 100px 0 20px;
+      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.1);
+      transition: transform 0.4s cubic-bezier(0.86, 0, 0.07, 1);
+      transform: translateX(100%);
+      z-index: 999;
+      backdrop-filter: blur(20px) saturate(1.1);
+      overflow-y: auto;
+    }
+
+    .nav.mobile.open {
+      transform: translateX(0);
+      pointer-events: all;
+    }
+
+    .nav.mobile a {
+      margin: 0;
+      padding: 18px 24px;
+      text-align: left;
+      width: 100%;
+      color: var(--muted);
+      /* Brown text */
+      font-weight: 600;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      transition: background 0.2s;
+    }
+
+    .nav.mobile a:hover {
+      background: rgba(0, 0, 0, 0.03);
+    }
+
+    .nav.mobile a:last-child {
+      border-bottom: none;
+    }
+
+    .nav-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      /* Darken overlay */
+      z-index: 998;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+    }
+
+    .nav-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+
+    /* Page container sections - Symmetrical, centered, padding-heavy */
+    main {
+      max-width: var(--max-width);
+      margin: 0 auto 0;
+      padding: 0;
+      position: relative;
+    }
+
+    .section {
+      min-height: 80vh;
+      /* Keep for dramatic effect */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 100px 24px;
+      /* Generous vertical padding */
+      /* max-width: 800px; Reduced max-width for "app-like" feel on large screens */
+      margin: auto;
+      text-align: center;
+      /* Symmetrical centering */
+      position: relative;
+    }
+
+    /* Headlines */
+    .headline {
+      font-size: clamp(2.4rem, 9vw, 4.2rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+      margin-bottom: 16px;
+      color: #2a1a19;
+      /* Dark brown for headlines */
+      text-wrap: balance;
+      text-shadow: none;
+      /* Removed shadow for light bg */
+    }
+
+    .subheadline {
+      font-size: 1.1rem;
+      color: var(--muted);
+      /* Already set to brown, good */
+      max-width: 650px;
+      /* Constrain for readability */
+      margin-left: auto;
+      margin-right: auto;
+      line-height: 1.6
+    }
+
+    /* intro area - More defined spacing */
+    #intro {
+      padding-top: 120px;
+      padding-bottom: 80px;
+      min-height: 90vh;
+    }
+
+    .cta-row {
+      margin-top: 32px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      /* Stacked CTAs for mobile */
+    }
+
+    .btn {
+      border-radius: 999px;
+      padding: 14px 32px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      border: 1px solid transparent;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+      /* Softer shadow */
+      width: 90%;
+      max-width: 320px;
+      /* Symmetrical button width */
+    }
+
+    .btn-primary {
+      background: linear-gradient(90deg, var(--accent-a), var(--accent-c));
+      /* Pink gradient */
+      color: #ffffff;
+      /* White text */
+      box-shadow: 0 10px 30px rgba(255, 134, 172, 0.3), 0 6px 18px rgba(0, 0, 0, 0.1);
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-4px) scale(1.005);
+      box-shadow: 0 14px 40px rgba(255, 134, 172, 0.4);
+      /* Pinker shadow */
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--accent-b);
+      /* Mint border */
+      color: var(--muted);
+      padding: 13px 31px;
+      backdrop-filter: blur(6px);
+      transition: transform .18s ease;
+    }
+
+    .btn-ghost:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent-a);
+      color: var(--accent-c);
+      /* Deep pink text */
+    }
+
+    /* --- FEATURES SECTION - REFACTOR FOR MOBILE VERTICAL FLOW --- */
+    #features {
+      flex-direction: column;
+      padding-top: 80px;
+      padding-bottom: 80px;
+      min-height: auto;
+    }
+
+    .features-sticky {
+      /* This entire section is now fully static and centered */
+      width: 100%;
+      position: static;
+      height: auto;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .features-content {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      /* Gap between cards */
+      align-items: center;
+    }
+
+    .feature-card {
+      background: var(--panel);
+      /* White panel */
+      padding: 32px;
+      border-radius: 20px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      /* Light border */
+      margin-bottom: 0;
+      /* Remove old margin */
+      min-height: auto;
+      width: 95%;
+      max-width: 480px;
+      /* Symmetrical max width */
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+      /* Softer shadow */
+      transition: all 0.5s cubic-bezier(.19, 1, .22, 1);
+    }
+
+    .feature-card:last-child {
+      margin-bottom: 0;
+    }
+
+    .feature-card h3 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--accent-a);
+      /* Use an accent for titles */
+    }
+
+    .feature-card p {
+      color: var(--muted);
+      /* Brown text */
+      line-height: 1.6;
+      font-size: 1rem;
+    }
+
+    /* impact / big stat - Centered and dramatic */
+    #impact {
+      padding-top: 80px;
+      padding-bottom: 100px;
+    }
+
+    .impact-number {
+      font-size: clamp(6rem, 20vw, 10rem);
+      font-weight: 900;
+      background: linear-gradient(90deg, var(--accent-c), var(--accent-a));
+      /* Pink gradient */
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin: 20px 0;
+      line-height: 1;
+    }
+
+    /* Chat interface */
+    .aurora-border {
+      padding: 2px;
+      /* Smaller border for sleekness */
+      border-radius: 24px;
+      background: linear-gradient(90deg, var(--accent-a), var(--accent-b));
+      /* Pink to Mint */
+      display: block;
+      margin: 32px auto;
+      max-width: 600px;
+      width: 100%;
+    }
+
+    .chatbox {
+      background: #ffffff;
+      /* Solid white */
+      border-radius: 22px;
+      padding: 4px;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+      /* Softer shadow */
+      border: 1px solid rgba(0, 0, 0, 0.05)
+    }
+
+    #chat {
+      height: 50vh;
+      /* Taller chat box for mobile */
+      max-height: 500px;
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px
+    }
+
+    .message {
+      padding: 10px 14px;
+      border-radius: 12px;
+      max-width: 85%;
+      line-height: 1.4
+    }
+
+    .message.bot {
+      padding-left: 5%;
+      text-align: left;
+      align-self: flex-start;
+      background: #f1f1f1;
+      /* Light gray */
+      color: #333;
+      /* Dark gray text */
+      border: 1px solid #e0e0e0;
+      border-bottom-left-radius: 4px;
+      /* Slight app-like styling */
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: linear-gradient(90deg, var(--accent-a), var(--accent-c));
+      /* Pink gradient */
+      color: #ffffff;
+      /* White text */
+      font-weight: 600;
+      border-bottom-right-radius: 4px;
+      /* Slight app-like styling */
+    }
+
+    .composer {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      border-top: 1px solid #e0e0e0;
+      /* Light border */
+    }
+
+    .composer input {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      /* Light border */
+      background: #f9f9f9;
+      /* Off-white input */
+      color: #333;
+      /* Dark text */
+      outline: none;
+      font-size: 1rem;
+    }
+
+    .composer button {
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: none;
+      font-weight: 700;
+      background: var(--accent-a);
+      /* Solid Pink */
+      color: #fff;
+      /* White text */
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .composer button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    /* --- NEW: Minimalist "Typing" Loader --- */
+    .typing-indicator {
+      /* Override default padding to center the dots */
+      padding-top: 24px !important;
+      padding-bottom: 24px !important;
+      min-height: 70px; /* Give it a consistent height */
+      position: relative;
+      display: flex;
+      align-items: center;
+      /* The .bot class already aligns it left, which is perfect */
+    }
+
+    .typing-dot {
+      width: 10px;
+      height: 10px;
+      margin: 0 4px;
+      /* Use the mint accent color */
+      background-color: var(--accent-b); 
+      border-radius: 50%;
+      opacity: 0.2;
+      /* Call the animation */
+      animation: pulse-dot 1.4s infinite ease-in-out;
+    }
+
+    /* Stagger the animation for a "wave" effect */
+    .typing-dot:nth-child(2) {
+      /* Use the pink accent color for contrast */
+      background-color: var(--accent-a);
+      animation-delay: 0.2s;
+    }
+
+    .typing-dot:nth-child(3) {
+      /* Use the deep pink/berry color */
+      background-color: var(--accent-c);
+      animation-delay: 0.4s;
+    }
+
+    /* Keyframe animation for the pulse */
+    @keyframes pulse-dot {
+      0%, 100% {
+        opacity: 0.2;
+        transform: scale(0.9);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.05);
+      }
+    }
+    /* --- End of New CSS --- */
+
+    /* footer - Clean and minimal */
+    footer {
+      text-align: center;
+      padding: 40px 18px;
+      color: #999;
+      /* Lighter gray text */
+      border-top: 1px solid #eee;
+      /* Light border */
+    }
+
+    /* reveal helper (for subtle movement) - Keeping animation */
+    .reveal {
+      transform: translateY(22px);
+      opacity: 0;
+      transition: all 0.9s cubic-bezier(.19, 1, .22, 1)
+    }
+
+    .reveal.visible {
+      transform: translateY(0);
+      opacity: 1
+    }
+
+    /* DESKTOP MEDIA QUERY: Bring back the original desktop layout */
+    @media (min-width: 821px) {
+      :root {
+        /* Re-declare palette for clarity */
+        --bg-900: #fdfcf7;
+        --bg-800: #f0f8ff;
+        --panel: #ffffff;
+        --panel-strong: #f5f5f5;
+        --muted: #4a2c2a;
+        --accent-a: #ff86ac;
+        --accent-b: #a0e6d2;
+        --accent-c: #e66891;
+        --max-width: 1200px;
+      }
+
+      /* Reset header to non-sticky and desktop layout */
+      header {
+        position: fixed;
+        top: 14px;
+        left: 0;
+        right: 0;
+        padding: 18px 28px;
+        max-width: var(--max-width);
+        margin: 0 auto;
+        width: calc(100% - 56px);
+        background: rgba(253, 252, 247, 0.8);
+        /* Creamy translucent */
+        border-radius: 14px;
+        backdrop-filter: blur(6px) saturate(1.1);
+        box-shadow: 0 6px 30px rgba(0, 0, 0, 0.1);
+        /* Softer shadow */
+        border: 1px solid rgba(0, 0, 0, 0.05);
+      }
+
+      .menu-toggle {
+        display: none;
+      }
+
+      nav.nav.desktop {
+        display: block;
+      }
+
+      nav.nav.mobile {
+        display: none;
+      }
+
+      .nav-overlay {
+        display: none;
+      }
+
+      nav.nav a {
+        margin-left: 28px;
+        color: var(--muted);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        opacity: 0.95
+      }
+
+      nav.nav a:hover {
+        color: var(--accent-c);
+        /* Deep pink */
+        text-shadow: none;
+      }
+
+      main {
+        margin: 120px auto 80px;
+        padding: 0 24px;
+      }
+
+      .section {
+        padding: 120px 40px;
+      }
+
+      /* Restore original Features section layout */
+      #features {
+        display: flex;
+        justify-content: space-between;
+        gap: 5%;
+        min-height: 80vh;
+        padding-top: 20vh;
+        padding-bottom: 20vh;
+      }
+
+      .features-sticky {
+        width: 45%;
+        position: sticky;
+        top: 25vh;
+        height: 50vh;
+        text-align: left;
+        margin-bottom: 0;
+      }
+
+      .features-content {
+        width: 50%;
+        text-align: left;
+        margin-left: 50%;
+      }
+
+      .feature-card {
+        width: 100%;
+        max-width: 100%;
+        padding: 40px;
+        margin-bottom: 120px;
+      }
+
+      .cta-row {
+        flex-direction: row;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      .btn {
+        width: auto;
+        max-width: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="neon-flow" aria-hidden="true">
+    <div class="flow-shape flow1"></div>
+    <div class="flow-shape flow2"></div>
+    <div class="flow-shape flow3"></div>
+  </div>
+  <div class="gridlines" aria-hidden="true"></div>
+
+  <header role="banner">
+    <div class="nova-mark">Alaska Bar</div>
+
+    <nav class="nav desktop" aria-label="Primary navigation">
+      <a href="#intro">Home</a>
+      <a href="#features">Our Flavors</a>
+      <a href="#impact">Our Story</a>
+      <a href="#chat-interface">Order Online</a>
+    </nav>
+
+    <button class="menu-toggle" aria-expanded="false" aria-controls="mobile-menu-list">
+      <span class="icon-bar bar1"></span>
+      <span class="icon-bar bar2"></span>
+      <span class="icon-bar bar3"></span>
+    </button>
+
+    <nav class="nav mobile" id="mobile-menu-list" aria-label="Mobile navigation">
+      <a href="#intro">Home</a>
+      <a href="#features">Our Flavors</a>
+      <a href="#impact">Our Story</a>
+      <a href="#chat-interface">Order Online</a>
+    </nav>
+  </header>
+
+  <div class="nav-overlay" aria-hidden="true"></div>
+
+  <main>
+    <section id="intro" class="section">
+      <h1 class="headline reveal">Life is short. <br>Make it sweet.</h1>
+      <p class="subheadline reveal" style="margin: 4%;">Welcome to <span
+          style="background:linear-gradient(90deg,var(--accent-a),var(--accent-c)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; font-weight:800">Alaska
+          Bar</span>,
+        your new favorite spot for handcrafted ice cream. We churn every batch with love, using only the freshest local
+        ingredients.</p>
+      <div class="cta-row reveal">
+        <a class="btn btn-primary" href="#chat-interface" style="text-decoration: none;">Order Online Now</a>
+        <a class="btn btn-ghost" href="#features" style="text-decoration: none;">Explore Flavors</a>
+      </div>
+    </section>
+
+
+    <section class="section" id="features">
+      <div class="features-sticky">
+        <h2 class="headline reveal">A Flavor for <br>Everyone</h2>
+        <p class="subheadline reveal delay-1">From timeless classics to daring new combinations, our menu has something
+          to make everyone smile.</p>
+      </div>
+      <div class="features-content">
+        <div class="feature-card reveal">
+          <h3>Classic Scoops</h3>
+          <p>Indulge in the rich, creamy perfection of our Classic Vanilla Bean, Decadent Chocolate, and sweet Strawberry
+            Fields.</p>
+        </div>
+        <div class="feature-card reveal">
+          <h3>Signature Creations</h3>
+          <p>Try our famous 'Arctic Mint Chip', 'Caramel Waffle Crunch', or the unforgettable 'Berry Bliss' sorbet.</p>
+        </div>
+        <div class="feature-card reveal">
+          <h3>Vegan & Dairy-Free</h3>
+          <p>Deliciousness for all! Our oat milk and coconut-based options are just as rich and satisfying. Ask about our
+            vegan 'Dark Matter' chocolate!</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="impact" class="section">
+      <h1 class="headline reveal">Made fresh. <br>Served daily.</h1>
+      <div class="impact-number reveal">100%</div>
+      <p class="subheadline reveal">Of our ice cream is churned in-house, right here. We're proud to partner with local
+        dairies and farmers to bring you the best of Alaska.</p>
+    </section>
+
+    <section id="chat-interface" class="section" aria-labelledby="chat-heading">
+      <h2 id="chat-heading" class="headline reveal">Start Your Order!</h2>
+      <p class="subheadline reveal" style="margin: 10%;">Our friendly online assistant can help you pick flavors, check
+        for allergens, or place an order for pickup.</p>
+
+      <div class="aurora-border reveal" style="margin-top:16px;">
+        <div class="chatbox">
+          <div id="chat" aria-live="polite">
+            <div class="message bot" style="text-align: left;">Welcome to Alaska Bar! I can help you with our menu or
+              take your order. What are you craving today?
+            </div>
+          </div>
+          <div class="composer">
+            <input id="user-input" placeholder="e.g., What are your most popular flavors?" aria-label="Chat input" />
+            <button id="send-btn" aria-label="Send message">Send</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>&copy; <span id="year"></span> Alaska Bar. — All rights reserved.</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.3/dist/purify.min.js"></script>
+  <script>
+    // A single, consolidated, and optimized JavaScript block
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. Footer Year Update
+      document.getElementById('year').textContent = new Date().getFullYear();
+
+      // 2. Intersection Observer for 'reveal' and 'feature-card' animations
+      const animationObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            e.target.classList.add('visible');
+            observer.unobserve(e.target);
+          }
+        });
+      }, { threshold: 0.12 });
+
+      document.querySelectorAll('.reveal, .feature-card').forEach(el => {
+        animationObserver.observe(el);
+      });
+
+      // 3. Hamburger Menu Toggle Logic (Updated for Off-Canvas)
+      const menuToggle = document.querySelector('.menu-toggle');
+      const mobileNav = document.querySelector('.nav.mobile');
+      const navOverlay = document.querySelector('.nav-overlay');
+
+      function toggleMobileMenu(isOpenOverride = null) {
+        const isCurrentlyOpen = mobileNav.classList.contains('open');
+        const isOpen = isOpenOverride === null ? !isCurrentlyOpen : isOpenOverride;
+
+        mobileNav.classList.toggle('open', isOpen);
+        menuToggle.classList.toggle('open', isOpen);
+        navOverlay.classList.toggle('open', isOpen);
+        menuToggle.setAttribute('aria-expanded', isOpen);
+
+        // Toggle body scroll lock for a true app feel
+        document.body.style.overflow = isOpen ? 'hidden' : '';
+      }
+
+      menuToggle.addEventListener('click', () => toggleMobileMenu());
+      navOverlay.addEventListener('click', () => toggleMobileMenu(false)); // Close on overlay click
+
+      // Close menu when a link is clicked
+      mobileNav.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', () => {
+          if (mobileNav.classList.contains('open')) {
+            // Delay close slightly to allow for smooth scroll start
+            setTimeout(() => toggleMobileMenu(false), 200);
+          }
+        });
+      });
+
+
+      // 4. Parallax Flow Shapes (Desktop Only)
+      // This JS is untouched, but the .flow-shape elements are hidden via CSS
+      const flowShapes = document.querySelectorAll(".flow-shape");
+      // Check for device width instead of user agent for better reliability
+      const isMobileSize = window.matchMedia("(max-width: 820px)").matches;
+
+      if (!isMobileSize) {
+        let mouseX = 0, mouseY = 0, targetX = 0, targetY = 0;
+
+        document.addEventListener("mousemove", e => {
+          const { innerWidth, innerHeight } = window;
+          mouseX = (e.clientX - innerWidth / 2) / innerWidth;
+          mouseY = (e.clientY - innerHeight / 2) / innerHeight;
+        });
+
+        function animateFlow() {
+          targetX += (mouseX - targetX) * 0.08;
+          targetY += (mouseY - targetY) * 0.08;
+
+          flowShapes.forEach((el, i) => {
+            const depth = (i + 1) * 25;
+            el.style.transform = `translate(${targetX * depth}px, ${targetY * depth}px)`;
+          });
+
+          requestAnimationFrame(animateFlow);
+        }
+
+        animateFlow();
+      } else {
+        // Mobile Optimization: Ensure shapes are static and do not trigger performance issues
+        flowShapes.forEach(el => {
+          el.style.willChange = "auto";
+          el.style.filter = "blur(90px)"; // Apply the smaller blur
+        });
+      }
+
+      // 5. Basic Chat Mock Behaviour (local worker connection) - Unchanged from original logic
+      // --- THIS SCRIPT IS UNCHANGED PER YOUR REQUEST ---
+      const WORKER_URL = "https://alaska-bar.saadnaik.workers.dev"; // Update with actual worker URL
+      const chatLog = document.getElementById('chat');
+      const userInput = document.getElementById('user-input');
+      const sendBtn = document.getElementById('send-btn');
+      let num = Math.random();toString(36).substring(7);
+      console.log("Session ID:", num);
+
+      function appendMessage(text, sender, isHtml = false) {
+        const msg = document.createElement('div');
+        msg.classList.add('message', sender);
+        if (isHtml) {
+          msg.innerHTML = text;
+        } else {
+          msg.textContent = text;
+        }
+        chatLog.appendChild(msg);
+        chatLog.scrollTop = chatLog.scrollHeight;
+      }
+
+      function showTypingIndicator() {
+       const indicator = document.createElement('div');
+        indicator.classList.add('message', 'bot', 'typing-indicator');
+
+        // Create the 3 dots
+        for (let i = 0; i < 3; i++) {
+          const dot = document.createElement('span');
+          dot.classList.add('typing-dot');
+          indicator.appendChild(dot);
+        }
+        
+        chatLog.appendChild(indicator);
+        chatLog.scrollTop = chatLog.scrollHeight;
+        return indicator;
+      }
+
+      async function sendMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
+        appendMessage(text, 'user');
+        userInput.value = '';
+        userInput.disabled = true;
+        sendBtn.disabled = true;
+        const indicator = showTypingIndicator();
+
+        try {
+          const res = await fetch(WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userPrompt: text, clientID: num })
+          });
+          indicator.remove();
+
+          if (!res.ok) {
+            appendMessage(`We're busy scooping! Please try again in a moment.`, 'bot');
+          } else {
+            const data = await res.json();
+            const reply = typeof data.result === 'string'
+              ? data.result
+              : JSON.stringify(data.result, null, 2);
+
+            // Convert Markdown → HTML
+            const rawHtml = marked.parse(reply);
+
+            // Sanitize HTML (prevents XSS)
+            const safeHtml = DOMPurify.sanitize(rawHtml);
+
+            // Append nicely
+            appendMessage(safeHtml, 'bot', true);
+          }
+        } catch (err) {
+          indicator.remove();
+          appendMessage(`Our online order system is down! // ${err.message}`, 'bot');
+        } finally {
+          userInput.disabled = false;
+          sendBtn.disabled = false;
+          userInput.focus();
+        }
+      }
+
+      sendBtn.addEventListener('click', sendMessage);
+      userInput.addEventListener('keypress', e => {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+          sendMessage();
+        }
+      });
+    });
+  </script>
+
+</body>
+
+</html>

@@ -4,16 +4,15 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "nova-capture",
+	"name": "alaska-bar",
 	"main": "src/index.js",
-	"compatibility_date": "2025-09-23",
+	"compatibility_date": "2025-10-24",
+	"observability": {
+		"enabled": true
+	},
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
-	"observability": {
-		"enabled": true,
-		"head_sampling_rate": 0.1
-	},
 	"kv_namespaces": [
 		{
 			"binding": "KV_NAMESPACE",
@@ -41,13 +40,11 @@
 		// "LLM_PROVIDER": "gemini",									              //google
 		// "LLM_MODEL": "gemini-2.0-flash-lite",				     	     	      //google
 
-		"CF_ACCOUNT_ID": "ec758d282b2c89b4a1a147b64f445849",               //cloudflare
-		"CF_GATEWAY_NAME": "nova",                                         //cloudflare
-		"CF_API_KEY": "qifU2roiq7xAkvQ8LnX4xoPJqeCojHB7aHIRO1fZ",                  //cloudflare
+		"CF_ACCOUNT_ID": "ec758d282b2c89b4a1a147b64f445849",                      //cloudflare
+		"CF_GATEWAY_NAME": "alaska-bar",                                         //cloudflare
+		"CF_AIG_TOKEN": "bod7jVmYK0ycQYe3IMLBZQQUeIxs_h4JJAfKkN2L",                  //cloudflare
 
-		"GROQ_KEY": "",  //groq
-		"OPENAI_KEY": "", //openai
-		"GEMINI_KEY": "",          //google
+		"GEMINI_KEY": "AIzaSyAvYkIUgfbpALuG2UU8hTcqbhYrRYUt-zg",          //google
 
 		"LLM_MODEL": "gemini-2.0-flash-lite",				     	     	                      //cloudflare	
 		// "LLM_MODEL": "llama-3.3-70b-versatile",								              //cloudflare

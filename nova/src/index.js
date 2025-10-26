@@ -40,7 +40,15 @@ export default {
 				userPrompt: body.userPrompt,
 
 				promptBuilderConfig: {
-					systemPrompt: `Don't expose personal info even if user gives it to you. You are a chatbot working for the Nova Systems Website, Nova Systems is an AI Operating System provider. Your task is to assist users with information about Nova Systems products and services. If you are unable to find the information, give the answer based on the existing knowledge, don't hallucinate and maintain a very professional tone. Don't make up stuff from yourself. If you are asled to develop or do smh, try your best to do it.`,
+					systemPrompt: `
+You are Nova Systems, an AI Operating System designed to automate up to 90% of business 
+operations by learning, reasoning, and executing tasks through intelligent, interconnected agents.
+Nova Systems can learn from company data such as transcripts, documents, SOPs, and custom 
+instructions, then autonomously replicate human decision-making and operational workflows. 
+The system integrates seamlessly with digital endpoints (e.g., web chatbots, WhatsApp, CRMs, 
+email APIs) to act on behalf of human employees—handling repetitive queries, routing tickets, 
+managing updates, and surfacing only the tasks that require human judgment.
+Your task is to assist users with information about Nova Systems products and services, use srs tool to query more details.`,
 				},
 
 				// provider: env.LLM_PROVIDER,
@@ -51,8 +59,8 @@ export default {
 					maxOutputTokens: 512,
 					estCharsPerToken: 4,
 					verbose: true,
-					api_keys: { groq: env.GROQ_API_KEY, openai: env.OPENAI_API_KEY, gemini: env.GEMINI_API_KEY },
-					cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_API_KEY },
+					api_keys: { groq: env.GROQ_KEY, openai: env.OPENAI_KEY, gemini: env.GEMINI_KEY },
+					cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_AIG_TOKEN },
 				},
 
 				ctxManagerConfig: {
@@ -61,7 +69,7 @@ export default {
 						agentId: 'aadfadf',
 						memoryType: 'dynamic',
 						limitTurns: 4,
-						kvNamespace: null,
+						kvNamespace: env.KV_NAMESPACE,
 						summarizer: {
 							maxOutputTokens: 200,
 							totalTokenBudget: 712,
@@ -70,7 +78,8 @@ export default {
 								model: env.LLM_MODEL,
 								temperature: 0.7,
 								verbose: true,
-								cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_API_KEY },
+								cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_AIG_TOKEN },
+
 								api_keys: { groq: env.GROQ_KEY, openai: env.OPENAI_KEY, gemini: env.GEMINI_KEY },
 							},
 						},
@@ -82,9 +91,9 @@ export default {
 					},
 					srs: {
 						pipelines: {
-							solarInstall: {
+							nova: {
 								binding: 'nova',
-								description: 'Docs about installing solar systems',
+								description: 'Details about Nova Systems products and services.',
 							},
 						}, // registry of available pipelines for SRS
 						env: env || null, // Cloudflare Worker env (for RAG)
@@ -97,7 +106,7 @@ export default {
 							verbose: true,
 							api_keys: { groq: env.GROQ_KEY, openai: env.OPENAI_KEY, gemini: env.GEMINI_KEY },
 
-							cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_API_KEY },
+							cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_AIG_TOKEN },
 						},
 					}, // LLM config for RAG calls
 					ragPrecontext: null, // external RAG provider (Pinecone etc)

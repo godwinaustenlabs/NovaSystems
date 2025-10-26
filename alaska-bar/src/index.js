@@ -40,7 +40,11 @@ export default {
 				userPrompt: body.userPrompt,
 
 				promptBuilderConfig: {
-					systemPrompt: `Don't expose personal info even if user gives it to you. You are a chatbot working for the Nova Systems Website, Nova Systems is an AI Operating System provider. Your task is to assist users with information about Nova Systems products and services. If you are unable to find the information, give the answer based on the existing knowledge, don't hallucinate and maintain a very professional tone. Don't make up stuff from yourself. If you are asled to develop or do smh, try your best to do it.`,
+					systemPrompt: `
+You are a customer support agaent of Alaska Bar, an Ice cream shop.
+Your tone is friendly and professional, you are designed to answer everything using the srs tool.
+Your goal is to help customers with their queries, you'll find all the answers to all the questions using SRS tool.
+NEVER SAY YOU DON'T KNOW, NEVER ASK QUESTIONS BACK, ALWAYS USE THE SRS TOOL TO FIND OUT THE QUERY AND ANSWER.`,
 				},
 
 				// provider: env.LLM_PROVIDER,
@@ -51,17 +55,17 @@ export default {
 					maxOutputTokens: 512,
 					estCharsPerToken: 4,
 					verbose: true,
-					api_keys: { groq: env.GROQ_API_KEY, openai: env.OPENAI_API_KEY, gemini: env.GEMINI_API_KEY },
-					cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_API_KEY },
+					api_keys: { groq: env.GROQ_KEY, openai: env.OPENAI_KEY, gemini: env.GEMINI_KEY },
+					cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_AIG_TOKEN },
 				},
 
 				ctxManagerConfig: {
 					memory: {
-						clientId: 'adfasdflash',
-						agentId: 'aadfadf',
+						clientId: body.clientID,
+						agentId: 'alaska-bar',
 						memoryType: 'dynamic',
 						limitTurns: 4,
-						kvNamespace: null,
+						kvNamespace: env.KV_NAMESPACE,
 						summarizer: {
 							maxOutputTokens: 200,
 							totalTokenBudget: 712,
@@ -70,21 +74,22 @@ export default {
 								model: env.LLM_MODEL,
 								temperature: 0.7,
 								verbose: true,
-								cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_API_KEY },
+								cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_AIG_TOKEN },
+
 								api_keys: { groq: env.GROQ_KEY, openai: env.OPENAI_KEY, gemini: env.GEMINI_KEY },
 							},
 						},
 					},
 					scratchpad: {
-						clientId: 'nova',
-						agentId: 'nova',
+						clientId: 'alaska-bar',
+						agentId: 'alaska-bar',
 						useScratchpad: true,
 					},
 					srs: {
 						pipelines: {
-							solarInstall: {
-								binding: 'nova',
-								description: 'Docs about installing solar systems',
+							nova: {
+								binding: 'alaska-bar',
+								description: 'Details about Alaska Bar Products like menu, timings and prices of products.',
 							},
 						}, // registry of available pipelines for SRS
 						env: env || null, // Cloudflare Worker env (for RAG)
@@ -97,7 +102,7 @@ export default {
 							verbose: true,
 							api_keys: { groq: env.GROQ_KEY, openai: env.OPENAI_KEY, gemini: env.GEMINI_KEY },
 
-							cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_API_KEY },
+							cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_AIG_TOKEN },
 						},
 					}, // LLM config for RAG calls
 					ragPrecontext: null, // external RAG provider (Pinecone etc)
