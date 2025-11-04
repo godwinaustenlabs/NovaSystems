@@ -27,3 +27,5 @@ Thumbs.db
 ./mockAgent2
 ./mockAgent3
 ./mockAgent4
+./alaska-bar/wrangler.jsonc
+./nova/wrangler.jsonc
