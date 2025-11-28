@@ -40,7 +40,7 @@ export default {
 
         const nasRequest = {
             userPrompt: body.userPrompt,
-            promptBuilderConfig: { systemPrompt: `You are a friendly customer support agent for Alaska Bar. Always use SRS for flavor questions.` },
+            promptBuilderConfig: { systemPrompt: `You are a friendly customer support agent. Always use SRS for flavor questions.` },
             llmConfig: {
                 model: env.LLM_MODEL,
                 temperature: 0.7,
@@ -49,11 +49,11 @@ export default {
                 cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_AIG_TOKEN }
             },
             ctxManagerConfig: {
-                memory: { clientId: body.clientID, agentId: 'alaska-bar-bot', memoryType: 'dynamic', limitTurns: 10, kvNamespace: env.KV_NAMESPACE },
-                scratchpad: { clientId: body.clientID, agentId: 'alaska-bar-bot', useScratchpad: true },
+                memory: { clientId: body.clientID, agentId: 'bot', memoryType: 'dynamic', limitTurns: 10, kvNamespace: env.KV_NAMESPACE },
+                scratchpad: { clientId: body.clientID, agentId: 'bot', useScratchpad: true },
                 srs: {
                     env: env,
-                    pipelines: { nova: { binding: 'nova-docs', description: 'Technical docs for Nova Framework' }, store: { binding: 'store-inventory', description: 'Ice cream flavors and pricing' } },
+                    pipelines: { nova: { binding: 'docs', description: 'Technical docs' }, store: { binding: 'store-inventory', description: 'pricing' } },
                     llmConfig: { model: env.LLM_MODEL, api_keys: { groq: env.GROQ_KEY } }
                 }
             },
