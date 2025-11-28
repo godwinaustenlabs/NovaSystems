@@ -1,549 +1,174 @@
-# **Nova Framework --- Full technical evaluation & detailed developer documentation**
+# Nova Agent Framework v2.0
 
-Below is a clean, developer-oriented analysis and exhaustive documentation of the framework.
+## Overview
 
-# **Table of contents**
+Nova is a high-performance JavaScript framework designed for building Reasoning Agents natively on Cloudflare Workers. Unlike standard chatbot libraries, Nova enforces a Recursive Thinking Loop. Agents built with Nova Think (Scratchpad), Remember (Dynamic Memory), and Research (Auto-Routing RAG) before formulating a final answer.
 
-1.  Module-by-module: responsibilities, config vs runtime, return types
+## Key Features
 
-2.  Data contracts (NAS schema)
+- **Recursive Reasoning Loop:** Iteratively calls tools and updates its internal "Scratchpad" before responding.
+- **Unified Context Manager:** Manages Short-term (RAM), Long-term (KV/Vector), and External (RAG) context.
+- **Dynamic Memory Strategy:** Summarizes conversation history when token budget is exceeded.
+- **Smart RAG (SRS):** LLM Router selects the most relevant knowledge base pipeline.
+- **NAS Schema Enforcement:** Ensures strict JSON output adherence.
+- **Cloudflare AI Gateway:** Native integration for analytics, caching, and rate limiting.
 
-3.  Pipeline flow (step-by-step with data at each step)
+## Installation
 
-4.  Memory subsystem deep dive: buffer vs summary vs dynamic (nitty-gritty)
+Install the framework in your Cloudflare Worker project:
 
-5.  Scratchpad: role and usage patterns
-
-6.  PromptBuilder: what it must include and why
-
-7.  ChatLLM: provider adapter expectations & token accounting
-
-8.  Parser & Validation: how to use and failure modes
-
-9.  How to run without the Pipeline (manual assembly) --- step-by-step code patterns
-
-10. Reliability, security, and operational recommendations
-
-11. Quick checklist & prioritized next tasks
-
----
-
-## **1 --- Module-by-module (detailed)**
-
-> For each file: short purpose, *constructor config*, *runtime call(s)*, returned values, and important behavioral notes.
-
-### **ChatLLM**
-
-**Purpose:** uniform interface to different chat LLM providers (currently Groq implemented).
-
-**Constructor (config):**
-
-- provider --- 'groq'|'anthropic'|'gemini'|'openai' (string)
-
-- model --- provider model ID (string)
-
-- api_key --- provider API key (string)
-
-- temperature --- default sampling temp (number, default 0.7)
-
-- maxOutputTokens --- default maximum output tokens (number, default 1024)
-
-- estCharsPerToken --- heuristic (number, default 4)
-
-- verbose --- log I/O (boolean, default false)
-
-**Runtime call:**
-
-- await chat(userInput, options)
-  - userInput = { system: string, user: string }
-
-  - options optional overrides { temperature?, maxOutputTokens?, verbose? }
-
-**Returns:** an object (in current code):
-
-- { text, tokensUsed, raw? }
-  - text: extracted content (falls back to several fields)
-
-  - tokensUsed: vendor usage.total_tokens or estimate
-
-  - raw: raw provider response
-
----
-
-### **Memory**
-
-### Facade & strategies
-
-**Purpose:** central router for conversation persistence; provides multiple strategies.
-
-**Memory facade constructor config:**
-
-- clientId (string), agentId (string)
-
-- memoryType --- 'buffer'|'summary'|'dynamic'|'kv'|'vector'|'nomemory' (string)
-
-- limitTurns --- number: how many turns to keep before summary/trim
-
-- summarizer --- { temperature, maxOutputTokens, totalTokenBudget, reserveForOutput, provider?, model?, api_key? }
-
-- provider --- either LLM/DB handle or provider name (usage varies)
-
-- api_key, model --- used by summarizer LLM if summary/dynamic
-
-**Main runtime methods (facade):**
-
-- await load() → { turns: [{role,content}], summary: string }
-
-- await save(turnOrTurns) → returns tokensUsedByMemory (if summarization ran) or 0
-
-**Strategy implementations**
-
-- NoMemory --- load() → empty; save() no-op.
-
-- BufferMemory(limitTurns) --- in-process Map keyed by clientId:agentId. Keeps last limitTurns turns. save()appends and trims.
-
-- SummaryMemory(summarizerCfg, limitTurns, provider, model, api_key) --- inherits buffer. When turns.length >= limitTurns, it:
-  1.  Builds summarizer prompt (system + user) which includes previous summary.
-
-  2.  Calls ChatLLM with summarizer config.
-
-  3.  Stores data.summary = res.text and trims data.turns = last 2.
-
-  4.  Returns { data, tokensUsedByMemory: res.tokensUsed }.
-
-- DynamicMemory --- token budget aware:
-  - holds memoryBudgetTokens = totalTokenBudget - reserveForOutput.
-
-  - buildContextMessages() composes [{ role: 'system', content: summary}, ...recentTurns] until token budget is reached (using estimateTokens).
-
-  - saveAndMaybeSummarize() triggers summarization when approximate token use > 95% budget.
-
-- KVMemoryExternal --- requires injected provider with .get(key)/.set(key,val).
-
-- VectorMemory --- requires provider.getContext(clientId,agentId) and provider.insert(...).
-
-**Important nitty-gritty:**
-
-- Summaries keep last **2** turns for recency; this is a design choice (tuneable).
-
-- Summarizer prompt content emphasizes "very concise" and "don't lose info" --- tradeoff: compressiveness vs fidelity.
-
-- save() in facade returns tokens used only when summarizer ran; callers should handle undefined safely.
-
----
-
-### **Scratchpad**
-
-**Purpose:** ephemeral chain-of-thought store (per client+agent).
-
-**Constructor config:**
-
-- clientId, agentId, useScratchpad (boolean)
-
-**Runtime:**
-
-- build() → null if disabled, else { active: boolean, content: string }
-
-- save(scratchpadContent) → persist string to in-process Map keyed by clientId:agentId
-
-**Notes:**
-
-- Not durable across process restarts.
-
-- Valuable for passing previous reasoning into the LLM without making it part of the persistent memory.
-
-- Pipeline saves parsed.scratchpad back each turn --- LLM can continue reasoning next turn.
-
----
-
-### **PromptBuilder**
-
-**Purpose:** craft the LLM prompt in NAS style: a system message (schema + rules + systemContext) and a user message (NAS_PROMPT JSON with user text and scratchpad).
-
-**Constructor config:**
-
-- systemPrompt (string): additional synchronous instruction embedded in rules
-
-- useScratchPad (bool)
-
-- tools (object): available tool descriptors
-
-- lastToolResponse (optional): previous result to make context
-
-**Runtime:**
-
-- await build(userPrompt, memoryContext, scratchpad) → { system: string, user: string }
-
-**System content includes:**
-
-- NAS_SCHEMA example
-
-- Rules 0.1--0.7 (enforce JSON, use scratchpad, etc.)
-
-- System Context JSON: tools, lastToolResponse, memory (turns & summary)
-
-**Why this matters:**
-
-- Separates policy/constraints (system role) from user intent (user role).
-
-- Provides tools and memory context in structured form so model can make toolRequest decisions.
-
----
-
-### **parseNAS**
-
-**Purpose:** Convert raw LLM output (string) to structured NAS object and validate essential shape.
-
-**Runtime:**
-
-- parseNAS(outputText: string):
-  - Attempt JSON.parse(outputText).
-
-  - On parse failure, try sanitizing newlines and reparse; if still fails throw an error with formatted raw text for debugging.
-
-  - Enforce data.type === 'NAS_OUTPUT' and return normalized object:
-
-    { content, type, scratchpad, toolRequest, finalAnswer, meta }
-
-**Failure modes & handling:**
-
-- Throwing here breaks pipeline --- pipeline should catch and surface helpful error info to caller.
-
-- Use parser errors to trigger re-prompting strategies (e.g., ask model to re-output valid JSON).
-
----
-
-### **withNASValidation**
-
-**Purpose:** wrapper that validates inbound NAS input and outbound NAS output using external validators validateNASInput and validateNASOutput.
-
-**Usage:**
-
-```
-const safeHandler = withNASValidation(requestBody, async (req) => agentLogic(req));
-const result = await safeHandler();
+```bash
+npm install nova-agent-framework@latest
 ```
 
-**Behavior:**
+## Quick Start
 
-- Return standardized error objects for invalid input, logic errors, or invalid outputs.
+Nova v2 uses a centralized Configuration Object (`nasRequest`) to reduce boilerplate. Memory, LLM, and Prompt classes are automatically instantiated.
 
----
+### Worker Setup (src/worker.js)
 
-### **Pipeline**
+```javascript
+import { Pipeline } from 'nova-agent-framework';
 
-**Purpose:** The default orchestrator that wires everything into a consistent runtime flow.
+export default {
+    async fetch(request, env) {
+        if (request.method === 'OPTIONS') return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*' } });
+        if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
 
-**Constructor config:**
+        let body;
+        try { body = await request.json(); } catch { return new Response('Invalid JSON', { status: 400 }); }
 
-- Identity: clientId, agentId
+        const nasRequest = {
+            userPrompt: body.userPrompt,
+            promptBuilderConfig: { systemPrompt: `You are a friendly customer support agent for Alaska Bar. Always use SRS for flavor questions.` },
+            llmConfig: {
+                model: env.LLM_MODEL,
+                temperature: 0.7,
+                maxOutputTokens: 512,
+                api_keys: { groq: env.GROQ_KEY, openai: env.OPENAI_KEY, gemini: env.GEMINI_KEY },
+                cloudflare: { accountId: env.CF_ACCOUNT_ID, gatewayId: env.CF_GATEWAY_NAME, cfAIGToken: env.CF_AIG_TOKEN }
+            },
+            ctxManagerConfig: {
+                memory: { clientId: body.clientID, agentId: 'alaska-bar-bot', memoryType: 'dynamic', limitTurns: 10, kvNamespace: env.KV_NAMESPACE },
+                scratchpad: { clientId: body.clientID, agentId: 'alaska-bar-bot', useScratchpad: true },
+                srs: {
+                    env: env,
+                    pipelines: { nova: { binding: 'nova-docs', description: 'Technical docs for Nova Framework' }, store: { binding: 'store-inventory', description: 'Ice cream flavors and pricing' } },
+                    llmConfig: { model: env.LLM_MODEL, api_keys: { groq: env.GROQ_KEY } }
+                }
+            },
+            maxToolLoop: 6
+        };
 
-- LLM config: provider, model, api_key, temperature, maxOutputTokens, estCharsPerToken, verbose
-
-- Prompting: systemPrompt, tools, lastToolResponse, useScratchPad
-
-- Memory: memoryType, limitTurns, summarizer (see memory)
-
-- toolRunner?: (name, args) => Promise<any> optional
-
-- outputType: 'parsed'|'raw'|'text' (defaults to parsed)
-
-**run() behavior (step summary):**
-
-1.  memory.load() → memoryCtx
-
-2.  scratchpad.build() → scratch
-
-3.  promptBuilder.build(userPrompt, memoryCtx, scratch)
-
-4.  llm.chat(prompt) → response
-
-5.  parseNAS(response.text) → parsed
-
-6.  scratchpad.save(parsed.scratchpad) (string or parsed.scratchpad.content)
-
-7.  memory.save([...]) → returns {actualTokensUsed: number} if summarizer triggered directly and {actualTokensUsed: number, estimatedTokensUsed: number} if triggered dynamically \*(see section 4).
-
-8.  If parsed.toolRequest & toolRunner → call tool & attach parsed.toolResponse
-
-9.  Return text | raw | parsed shape which includes token usage + memory snapshot
-
-**Return (parsed):**
-
-- parsed (NAS object) plus:
-  - tokenUsage: response.tokensUsed
-
-  - tokensUsedByMemory
-
-  - turns, summary (from memory snapshot)
-
----
-
-## **2 --- NAS Schema (operational contract)**
-
-- **type** must be "NAS_OUTPUT" --- parser enforces this.
-
-- **content** --- human readable content (string).
-
-- **scratchpad** --- string or object holding reasoning; pipeline persists this back to scratchpad store.
-
-- **toolRequest** --- optional, if model wants to call a tool:
-  - { id, name, args, mode: 'sync|async', callback? }
-
-- **finalAnswer** --- optional final human-facing answer
-
-- **meta** --- { traceId, timestamp } recommended
-
-Make sure your LLM prompt forces the JSON shape exactly --- otherwise parser throws error (Logic already baked into promptBuilder).
-
----
-
-## **3 --- Pipeline data flow (detailed, with shapes)**
-
-**Input:** config + userPrompt
-
-**Memory.ctx**: { turns: [{role,content}], summary: string }
-
-**Scratchpad**: { active: bool, content: string } | null
-
-**PromptBuilder output**:
-
-```
-{
-  system: "NAS_SCHEMA: {...}\nRULES...\nSystem Context:\n{ tools:..., memory: { turns:..., summary:... } }",
-  user: "{ \"type\":\"NAS_PROMPT\", \"user\":\"<userPrompt>\", \"scratchpad\":{...} }"
-}
+        try {
+            const pipeline = new Pipeline(nasRequest, 'parsed');
+            const result = await pipeline.run();
+            return new Response(JSON.stringify({ result: result.content }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+        } catch (err) {
+            return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+        }
+    }
+};
 ```
 
-**LLM response (text)** → parseNAS → parsed object
-
-**update steps:**
-
-- scratchpad.save(parsed.scratchpad)
-
-- memory.save([{role:'user', content: userPrompt},{role:'assistant', content: parsed.content }])
-
-- if parsed.toolRequest → run tool and attach parsed.toolResponse
-
-**Output**: depends on outputType --- commonly the parsed NAS object enriched with token usage + memory snapshot.
-
----
-
-## **4 --- Memory subsystem: buffer vs summary vs dynamic (exhaustive)**
-
-### **BufferMemory (exact behavior)**
-
-- **Store:** Array turns of {role,content}
-
-- **Retention:** Keep last limitTurns (e.g., limitTurns = 3).
-
-- **When to use:** When you want raw, uncompressed context for a short conversation. No LLM cost. Fast and predictable.
-
-- **Tradeoffs:** No long-term retention; older facts vanish.
-
-### **SummaryMemory (exact behavior)**
-
-- **Trigger:** When turns.length >= limitTurns.
-
-- **Summary prompt construction:**
-  - System: "You compress conversation into a very, very concise factual summary..."
-
-  - User: Summarize this:\n<concat_of_turns>\n\nKeep under X words including previous summary's context "<previous summary>" ...
-
-- **Action:**
-  1.  Call LLM summarizer (configurable provider, model, api_key, temperature, maxOutputTokens).
-
-  2.  Set data.summary = res.text.
-
-  3.  Set data.turns = data.turns.slice(-2) (keep last 2 turns).
-
-  4.  Return tokensUsedByMemory = res.tokensUsed.
-
-- **What this achieves:**
-  - Keeps a compressed long-term memory string (summary) that preserves key facts.
-
-  - Maintains recency via last 2 turns.
-
-- **Risks & pitfalls:**
-  - Summaries can hallucinate or omit details; prompt engineering matters.
-
-  - Summarization cost (LLM calls) must be tracked.
-
-### **DynamicMemory (exact behavior)**
-
-- **Goal:** maximize useful context under a hard token budget.
-
-- **Config keys:** summarizer.totalTokenBudget and reserveForOutput.
-
-- **Memory budget rule:** memoryBudgetTokens = totalTokenBudget - reserveForOutput.
-
-- **Composition algorithm:**
-  - Start with used = estimateTokens(summary) (if summary exists); add summary as system message.
-
-  - Iterate recent turns from newest to oldest, compute tokens = estimateTokens(turn.content).
-
-  - If used + tokens > memoryBudgetTokens → stop (do not include older turns).
-
-  - Build messages array containing the summary (if present) and a selection of most-recent turns that fit.
-
-- **Maintenance:** saveAndMaybeSummarize() triggers summarizeIfNeededForDynamic() when approximate token usage > 95% of memoryBudgetTokens.
-
-- **When to use:** long-running sessions where token budget matters (e.g., multi-hour chatbots, or pipelines where outputs + memory must stay under model limits).
-
-- **Tricky details:**
-  - Token estimator must be accurate: using a char/4 heuristic is rough; for robust operation use model tokenizers.
-
-  - The decision threshold (95%) is tunable.
-
-  - Summarizer must preserve essential facts reliably; include previous summary in the summarizer prompt.
-
----
-
-## **5 --- Scratchpad: behavior and patterns**
-
-- **Purpose:** Carry the model's internal reasoning between turns without bloating the main memory.
-
-- **Size & exposure:** Keep it concise; not a log of every micro-thought but a compact chain-of-thought hint.
-
-- **Read & write flow (typical):**
-  - Pipeline: scratchpad.build() gives previous scratch (if any). PromptBuilder includes it in the user message.
-
-  - LLM writes an updated scratchpad as part of the NAS output.
-
-  - Pipeline persists parsed.scratchpad into the scratchpad store for next turn.
-
-- **Use cases:**
-  - When model needs multi-step internal reasoning across a short sequence of prompts.
-
-  - When you want to trace model chain-of-thought for debugging or to re-insert thoughts into a different model.
-
----
-
-## **6 --- PromptBuilder: what must be present & why**
-
-**Must-haves in system role:**
-
-- Explicit NAS_SCHEMA example so the model can exactly match the keys/types.
-
-- Firm rule: output JSON only.
-
-- System Context: memory, tools, and last tool outputs.
-
-**User role composition:**
-
-- NAS_PROMPT object with user string and scratchpad.
-
-**Design tips**
-
-- Keep system role short and prescriptive to reduce hallucination.
-
-- Make tool descriptions short precise natural-language sentences; provide example toolRequest if you want the model to call them.
-
-- When memory is long, consider having the PromptBuilder call DynamicMemory.buildContextMessages() and pass those messages directly instead of the full memory.
-
----
-
-## **7 --- ChatLLM & token accounting expectations**
-
-- **Public contract:** chat({ system, user }, options) => { text, tokensUsed, raw }.
-
-- **Provider adapter tasks:**
-  - Translate input to provider payload (messages vs prompt).
-
-  - Handle streaming vs batch responses.
-
-  - Extract text reliably (choices[0].message.content, choices[0].delta, etc.).
-
-  - Map provider token usage into tokensUsed.
-
-- **Tokens & cost**
-  - Use vendor usage fields when available.
-
-  - For summaries and dynamic memory, persist and return tokensUsedByMemory so you can attribute cost to memory maintenance.
-
----
-
-## **8 --- Parser & Validation (practical)**
-
-- **Parser (parseNAS)**
-  - Must throw helpful errors on invalid JSON (include raw snippet).
-
-  - If parse fails often, implement a re-prompt strategy: send model the invalid output and ask for corrected JSON.
-
-- **Validation (withNASValidation)**
-  - Wrap external endpoints with this to reject invalid inbound requests early.
-
-  - Wrap agents/tools to ensure outputs match expected NAS schema.
-
----
-
-## **9 --- How to build an agent without the Pipeline (practical manual assembly)**
-
-**Why do this?** Research, debugging, custom control, complex tool orchestration.
-
-**Minimal manual wiring (pattern)**
-
-1.  **Init components**
-
-```
-const memory = new Memory({ clientId, agentId, memoryType, limitTurns, summarizer, provider, api_key, model });
-const scratchpad = new Scratchpad({ clientId, agentId, useScratchpad: true });
-const promptBuilder = new PromptBuilder({ systemPrompt, tools, lastToolResponse, useScratchPad: true });
-const llm = new ChatLLM({ provider, model, api_key, temperature, maxOutputTokens, estCharsPerToken });
+## Configuration Reference
+
+### nasRequest (Root Object)
+
+| Property            | Type   | Required | Default | Description                        |
+| ------------------- | ------ | -------- | ------- | ---------------------------------- |
+| userPrompt          | string | Yes      | -       | The current user query             |
+| promptBuilderConfig | Object | Yes      | -       | Configures agent persona           |
+| llmConfig           | Object | Yes      | -       | AI model and keys                  |
+| ctxManagerConfig    | Object | Yes      | -       | Memory, Scratchpad, and RAG config |
+| maxToolLoop         | number | No       | 6       | Safety limit for tool recursion    |
+
+### promptBuilderConfig
+
+| Property     | Type    | Required | Description                       |
+| ------------ | ------- | -------- | --------------------------------- |
+| systemPrompt | string  | Yes      | Core personality and instructions |
+| tools        | Object  | No       | Custom tool definitions           |
+| debug        | boolean | No       | Logs constructed prompts if true  |
+
+### llmConfig
+
+| Property        | Type    | Required | Description                                   |
+| --------------- | ------- | -------- | --------------------------------------------- |
+| model           | string  | Yes      | Model ID                                      |
+| api\_keys       | Object  | Yes      | Keys for AI providers                         |
+| temperature     | number  | No       | Default 0.7                                   |
+| maxOutputTokens | number  | No       | Default 1024                                  |
+| cloudflare      | Object  | No       | Routes requests through Cloudflare AI Gateway |
+| verbose         | boolean | No       | Logs full LLM requests                        |
+
+### ctxManagerConfig
+
+#### memory
+
+| Property    | Type      | Required | Description                          |
+| ----------- | --------- | -------- | ------------------------------------ |
+| clientId    | string    | Yes      | Unique user ID                       |
+| agentId     | string    | Yes      | Unique agent ID                      |
+| kvNamespace | KVBinding | Yes      | Cloudflare KV binding                |
+| limitTurns  | number    | No       | Number of turns to keep (default 10) |
+| memoryType  | string    | No       | buffer, summary, dynamic             |
+
+#### scratchpad
+
+| Property      | Type    | Required | Description                       |
+| ------------- | ------- | -------- | --------------------------------- |
+| clientId      | string  | Yes      | Matches memory clientId           |
+| agentId       | string  | Yes      | Matches memory agentId            |
+| useScratchpad | boolean | No       | Enables reasoning (default false) |
+
+#### srs
+
+| Property  | Type   | Required | Description                  |
+| --------- | ------ | -------- | ---------------------------- |
+| env       | Object | Yes      | Worker environment object    |
+| pipelines | Object | Yes      | Map of available RAG sources |
+| llmConfig | Object | Yes      | LLM config for Router        |
+
+## Architecture: NAS Loop
+
+```mermaid
+graph TD
+    Start([User Input]) --> Context[Context Manager Load]
+    Context --> BuildPrompt[Prompt Builder]
+    BuildPrompt --> LLM[LLM Inference]
+    LLM --> Parse[Parser NAS Schema]
+    Parse --> Check{Tool Request?}
+    Check -- Yes --> ExecuteTool[Execute Tool]
+    ExecuteTool --> UpdateContext[Update Context & Scratchpad]
+    UpdateContext --> BuildPrompt
+    Check -- No --> Save[Context Manager Save]
+    Save --> End([Final Response])
 ```
 
-2.  **Load context**
+## Module Reference
 
-```
-const memoryCtx = await memory.load();         // { turns, summary }
-const scratch = scratchpad.build();            // {active, content} | null
-```
+- **Pipeline.js:** Orchestrates the recursive loop.
+- **ContextManager.js:** Unifies ephemeral and persistent state.
+- **Memory.js:** Handles conversation history and token optimization.
+- **RAG.js:** Router and executor for semantic search.
+- **LLM.js:** Unified interface for AI inference.
+- **Parser.js:** Validates NAS JSON output.
+- **PromptBuilder.js:** Constructs LLM prompts.
 
-3.  **Build prompt**
+## Migration Guide (v1 → v2)
 
-```
-const prompt = await promptBuilder.build(userPrompt, memoryCtx, scratch);
-// prompt.system, prompt.user are strings
-```
+- Manual class instantiation removed.
+- Dependency Injection via Configuration.
+- Native SRS module included.
 
-4.  **Call LLM**
+## Troubleshooting
 
-```
-const response = await llm.chat(prompt, {});
-// response.text, response.tokensUsed, response.raw
-```
+- Invalid NAS JSON: use capable model, reduce temperature.
+- Tool request loop exceeded: increase maxToolLoop or refine systemPrompt.
+- SRS pipeline mismatch: ensure unique descriptions in srs.pipelines.
 
-5.  **Parse & validate**
+## License
 
-```
-const parsed = parseNAS(response.text);  // throws if invalid
-// optionally: withNASValidation(request, () => parsed)...
-```
+Apache-2.0 License.
 
-6.  **Persist**
-
-```
-scratchpad.save(typeof parsed.scratchpad === 'string' ? parsed.scratchpad : (parsed.scratchpad?.content ?? ''));
-await memory.save([{ role: 'user', content: userPrompt }, { role: 'assistant', content: parsed.content }]);
-```
-
-7.  **Handle tools manually**
-
-```
-if (parsed.toolRequest) {
-  const toolRes = await myToolRunner(parsed.toolRequest.name, parsed.toolRequest.args);
-  // decide: re-prompt LLM with tool results or return to user
-}
-```
-
-8.  **Return final result to caller**
-
-    Decide whether to return parsed, response.text, or raw, and include tokensUsed and memory snapshot if you need observability.
-
-**Notes for manual assembly**
-
-- You can mix and match: use Memory from the framework, but your own PromptBuilder.
-
-- When doing custom tool orchestration, prefer to re-prompt the LLM with tool result inserted into lastToolResponse and/or system context, then llm.chat() again --- this keeps NAS output shape consistent.
-
----

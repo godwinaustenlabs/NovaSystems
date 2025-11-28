@@ -9,6 +9,7 @@
     "dist/core/",
     "dist/utils/",
     "dist/nas_schemas/",
+    "dist/adapters/",
     "dist/index.js",
     "dist/index.d.ts",
     "LICENSE",
