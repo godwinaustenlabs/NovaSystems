@@ -4,7 +4,7 @@
 // Supports: Groq, OpenAI, Gemini
 // ======================================================
 
-import fetch from 'node-fetch';
+
 import OpenAI from 'openai';
 
 /**
