@@ -77,10 +77,9 @@ export async function parseRAW(output) {
   var data;
 
   try {
-    console.log('OUTPUT OBJ:', output);
     // Extract output from OpenAI-like responses.
     if (output?.choices?.[0]?.message?.content) {
-      data = (output?.choices[0].message?.content || '').trim().split(/\s+/)[0];
+      data = (output?.choices[0].message?.content || '').trim();
 
       return data;
     }

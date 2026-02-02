@@ -28,17 +28,16 @@ export class PromptBuilder {
   static get NAS_SCHEMA() {
     return JSON.stringify(
       {
-        type: 'NAS_OUTPUT',
-        content:
-          'ANYTHING YOU WANNA OUTPUT TO USER GOES HERE, E.G. ANSWER, JSON, ETC.',
-        scratchpad: 'Your reasoning or thought process goes here.',
+        type: "NAS_OUTPUT",
+        content: 'ANYTHING YOU WANNA OUTPUT TO USER GOES HERE, MUST USE THIS WHEN ENDING THE RESPONSE',
+        scratchpad: 'Your reasoning or thought process goes here. ALWAYS POPULATE',
         toolRequest: {
           name: 'string',
           args: {},
           mode: 'sync|async',
-          callback: 'https://yourworker.example/callback?reqId=uuid-v1',
+          callback: 'string',
         },
-        finalAnswer: null,
+        finalAnswer: 'boolean',
         meta: {
           traceId: 'uuid-v1',
           timestamp: new Date().toISOString(),
@@ -103,7 +102,7 @@ ${JSON.stringify(RAG || null, null, 2)}
       const toolResponseStr =
         JSON.stringify(this.lastToolResponse)?.slice(0, 4000) || '';
 
-      input = `Continue reasoning based on the new tool response and scratchpad context.
+      input = `You may call another tool or give final answer.
 (lastToolResponse truncated to 4000 chars if long)
 ${toolResponseStr}`;
     }

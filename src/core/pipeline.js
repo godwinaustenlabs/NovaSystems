@@ -73,7 +73,6 @@ export class Pipeline {
 
       // 4) Decide what to send: userPrompt (first round) OR lastToolResponse (after tool)
       if (lastToolResponse) {
-        // console.log('Last Tool Response: ' + lastToolResponse);                               //tester
         // Mark: only send the tool response forward, not the same user input again
         promptBuilder.lastToolResponse = lastToolResponse;
         built = await promptBuilder.build(
@@ -130,8 +129,6 @@ export class Pipeline {
           memory: context.memory,
         };
 
-        // Show data
-        console.log(COTOutput);
 
         // continue loop (do not save yet). The LLM will receive lastToolResponse in the next call.
         continue;

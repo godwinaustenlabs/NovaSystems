@@ -44,12 +44,12 @@ export class ContextManager {
     // Default tool definitions for dynamic routing/fetch
     this.defaultTools = {
       SMS: {
-        description: 'Semantic Memory Search (long-term).',
+        description: 'Semantic Memory Search (long-term) to reference past conversations. Only takes one word query',
         params: { query: 'string', topK: 'number' },
       },
       SRS: {
         description:
-          'Semantic RAG Search (To search smh from external sources).',
+          'Semantic RAG Search (To search smh from external knowledge base).',
         params: { query: 'string', topK: 'number' },
       },
     };
