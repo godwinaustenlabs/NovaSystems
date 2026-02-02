@@ -45,12 +45,12 @@ export class ContextManager {
     this.defaultTools = {
       SMS: {
         description: 'Semantic Memory Search (long-term) to reference past conversations. Only takes one word query',
-        params: { query: 'string', topK: 'number' },
+        params: { query: 'string'},
       },
       SRS: {
         description:
           'Semantic RAG Search (To search smh from external knowledge base).',
-        params: { query: 'string', topK: 'number' },
+        params: { query: 'string'},
       },
     };
   }
