@@ -1,6 +1,6 @@
 # Nova Agent Framework: The Definitive Guide
 
-**Version**: 0.0.4  
+**Version**: 0.0.5  
 **Package**: `nova-agent-framework`  
 **Architecture**: Cloudflare Workers (Edge AI)  
 **Repository**: `godwinaustenlabs/NovaSystems`  
