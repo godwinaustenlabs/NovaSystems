@@ -20,7 +20,6 @@
 		"CF_GATEWAY_NAME": "testing-gateway-2",
 		"CF_AIG_TOKEN": "O2bUj1gkZwFjlrW4HnXz_d1tMxWbbT8UMBJFfHqA",
 		"WA_VERIFY_TOKEN": "verificationtesting123",
-		// "WA_PHONE_NUMBER_ID": "934665196399099",
 		"WA_PHONE_NUMBER_ID": "987003544491839",
 		"GEMINI_API_KEY": "",
 		"OPENAI_API_KEY": "",
