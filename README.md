@@ -43,14 +43,14 @@
 
 ## Why Nova?
 
-The era of massive, monolithic AI frameworks running on heavy Python servers (LangChain, AutoGen) is ending. The future is **Edge AI**—agents that run milliseconds away from users, scale instantly to zero, and incur minimal cold-start latency.
+The era of massive, monolithic AI frameworks running on heavy Python servers (LangChain, AutoGen) is ending. The future is **Edge AI**, agents that run milliseconds away from users, scale instantly to zero, and incur minimal cold-start latency.
 
 **Nova Agent Framework** (`nova-agent-framework`) is built specifically for this future. It is not a general-purpose library ported to JavaScript; it is an **Edge-Native** framework designed for **Cloudflare Workers**.
 
 ### Key Differentiators
 
-1.  **Strict Typing**: We don't guess. Tools use `zod` schemas to enforce strict JSON output from LLMs. If an LLM hallucinates a parameter, Nova catches it *before* execution.
-2.  **Self-Healing**: Small models (Llama-70b, Haiku) often output broken JSON. Nova's `ChatLLM` layer includes a regex-based surgical repair engine that fixes these errors on the fly, saving up to 30% of failed requests invisibly.
+1.  **Strict Typing**: Tools now use `zod` schemas to enforce strict JSON output from LLMs. If an LLM hallucinates a parameter, Nova catches it *before* execution.
+2.  **Self-Healing**: Small models (Llama-70b, Haiku) often output broken JSON. Nova version 5's `ChatLLM` layer includes a regex-based surgical repair engine that fixes these errors on the fly, saving up to 30% of failed requests invisibly.
 3.  **Aesthetic Observability**: Debugging async agent loops is hard. Nova includes a centralized `Logger` that visualizes the "Thinking Loop" (`🔄 LOOP 1 START` ... `TOOL EXECUTION` ... `🔄 LOOP 1 END`) directly in your terminal.
 4.  **Unified Memory**: Short-term RAM buffers and long-term KV storage are abstracted into a single `ContextManager`.
 
