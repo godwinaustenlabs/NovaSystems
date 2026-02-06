@@ -93,12 +93,6 @@ async function webChatboxAgent(body, env) {
 
     // 2. Setup and Run
 
-    // Check for API Keys
-    if (!env.OPENAI_API_KEY && !env.GROQ_API_KEY) {
-        console.error("❌ Error: Please set OPENAI_API_KEY or GROQ_API_KEY in your .env file.");
-        throw new Error("Missing API Keys");
-    }
-
     // 3. Initialize the Pipeline
     const agent = new Pipeline({
         verbose: env.VERBOSE === 'true',
@@ -108,7 +102,7 @@ async function webChatboxAgent(body, env) {
             agentId: "nova-math-agent",
             memory: {
                 memoryType: "buffer", // Use simple in-memory buffer for testing (no DB needed)
-                limitTurns: 10,
+                limitTurns: 1,
                 kvNamespace: env.KV_NAMESPACE,
             },
             srs: {
