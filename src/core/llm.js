@@ -197,10 +197,22 @@ export class ChatLLM {
       // =========================================================
 
       // 1. Check if we have the specific "tool_use_failed" signature
-      const isToolError = err.code === 'tool_use_failed' || (err.error && err.error.code === 'tool_use_failed');
-      const failedGen = err.failed_generation || (err.error && err.error.failed_generation);
+      const isToolError =
+        err.code === 'tool_use_failed' ||
+        (err.error && err.error.code === 'tool_use_failed') ||
+        (err.message && err.message.includes('tool_use_failed')) ||
+        (err.status === 400 && JSON.stringify(err).includes('tool_use_failed'));
+
+      const failedGen =
+        err.failed_generation ||
+        (err.error && err.error.failed_generation) ||
+        (err.response?.data?.error?.failed_generation) ||
+        (err.error?.failed_generation);
 
       if (isToolError && failedGen) {
+        if (this.logger) {
+          this.logger.error("ChatLLM", "failed gen response recieved, self healing initiiated");
+        }
         if (this.verbose) console.warn(`[ChatLLM] ⚠️ Caught Gemini Tool Error. Attempting Self-Heal...`);
 
         let toolName, args;
@@ -218,15 +230,18 @@ export class ChatLLM {
           // JSON Parse failed, fall through to Regex
         }
 
-        // 2. Regex fallback for <function=...> format (Old Gemini style)
+        // 2. Regex fallback for <function=NAME({"arg": "val"}) format
         if (!toolName) {
-          const regex = /<function=([^{]+)(\{.*\})<\/function>/;
+          const regex = /<function=(\w+)\((.*)\)/;
           const match = failedGen.match(regex);
           if (match) {
             try {
-              toolName = match[1].trim();
+              toolName = match[1];
               args = JSON.parse(match[2]);
-            } catch (e) { }
+            } catch (e) {
+              // If JSON.parse fails, it might be a raw string
+              args = match[2];
+            }
           }
         }
 
