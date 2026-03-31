@@ -21,6 +21,26 @@ const estimateTokensLocal = (str = '', estCharsPerToken = 4) => {
   return Math.ceil(String(str).length / est);
 };
 
+// Utility: Slice conversational history without orphaning tool calls
+const sliceHistoryKeepingTools = (turns, limit) => {
+  if (!turns || turns.length <= limit) return turns;
+  let startIndex = turns.length - limit;
+  
+  // Backtrack to avoid starting on a tool message (needs assistant parent)
+  while (startIndex > 0 && turns[startIndex].role === 'tool') {
+    startIndex--;
+  }
+  
+  // Backtrack to the nearest user message. 
+  // Gemini errors if `assistant` follows `system`. It must follow `user` or `tool`.
+  // And `tool` must follow `assistant`. Therefore, the only safe starting point is `user`.
+  while (startIndex > 0 && turns[startIndex].role !== 'user') {
+    startIndex--;
+  }
+  
+  return turns.slice(startIndex);
+};
+
 // ======================================================
 // 🔌 Adapter Wrapper (NAS abstraction layer)
 // ======================================================
@@ -217,7 +237,7 @@ export class Memory {
         _BaseStore.set(k, merged);
         const mem = _BaseStore.get(k);
         if (mem?.turns?.length) {
-          const limitTurns = mem.turns.slice(-this.limitTurns);
+          const limitTurns = sliceHistoryKeepingTools(mem.turns, this.limitTurns);
           const RAM = { turns: limitTurns, summary: mem.summary || '' };
           _RAM.set(k, RAM);
           return { data: RAM, tokensUsedByMemory: null };
@@ -329,7 +349,7 @@ export class BufferMemory {
     else if (turn) data.turns.push(turn);
 
     if (data.turns.length > this.limitTurns) {
-      data.turns = data.turns.slice(-this.limitTurns);
+      data.turns = sliceHistoryKeepingTools(data.turns, this.limitTurns);
     }
     _RAM.set(k, data);
     return data;
@@ -417,10 +437,31 @@ export class DynamicMemory extends BufferMemory {
 
     for (let i = turns.length - 1; i >= 0; i--) {
       const t = turns[i];
-      const tokens = estimateTokensLocal(t.content);
-      if (used + tokens > this.memoryBudgetTokens) break;
-      messages.unshift({ role: t.role, content: t.content });
+      let tokens = estimateTokensLocal(t.content || '');
+
+      if (t.tool_calls) {
+        tokens += estimateTokensLocal(JSON.stringify(t.tool_calls));
+      }
+
+      if (used + tokens > this.memoryBudgetTokens) {
+        // We only break if the current first message is a 'user' message
+        // This ensures no orphaned tools, and that we don't start with an 'assistant' message
+        if (messages.length > 0 && messages[0].role === 'user') {
+          break;
+        }
+      }
+      
+      messages.unshift(t);
       used += tokens;
+
+      if (used > this.memoryBudgetTokens) {
+        // Safe break conditions:
+        // 1. We must not orphan a tool message (messages[0].role === 'tool')
+        // 2. We must ensure the history block starts with a 'user' message to satisfy Gemini
+        if (messages.length > 0 && messages[0].role === 'user') {
+          break;
+        }
+      }
     }
 
     return { messages, ExpectedUsedTokens: used };

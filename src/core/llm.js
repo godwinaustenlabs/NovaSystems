@@ -277,7 +277,7 @@ export class ChatLLM {
             type: 'TOOL_CALL',
             rawMessage: {
               role: 'assistant',
-              content: null,
+              content: "",
               tool_calls: [{
                 id: `call_rescued_${Date.now()}`,
                 type: 'function',
