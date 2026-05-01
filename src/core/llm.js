@@ -21,7 +21,8 @@ export class ChatLLM {
     this.logger = config.logger; // Injected Logger instance
 
     // Helper to detect provider based on model name
-    this.provider = this._detectProvider(this.model);
+    if (this.config.provider) this.provider = config.provider;
+    else this.provider = this._detectProvider(this.model);
   }
 
   /**
@@ -293,7 +294,7 @@ export class ChatLLM {
             type: 'TOOL_CALL',
             rawMessage: {
               role: 'assistant',
-              content: null,
+              content: "",
               tool_calls: [{
                 id: `call_rescued_${Date.now()}`,
                 type: 'function',

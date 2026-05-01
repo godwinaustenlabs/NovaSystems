@@ -1,6 +1,6 @@
 {
   "name": "nova-agent-framework",
-  "version": "0.0.7",
+  "version": "0.0.10",
   "description": "NOVA AGENT FRAMEWORK(dev)",
   "main": "dist/index.js",
   "types": "./index.d.ts",
@@ -21,7 +21,7 @@
     "lint": "eslint --fix",
     "commit": "cz",
     "format": "prettier . --write",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "keywords": [
     "nova",
