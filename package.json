@@ -1,6 +1,6 @@
 {
   "name": "nova-agent-framework",
-  "version": "0.0.10",
+  "version": "0.1.4",
   "description": "NOVA AGENT FRAMEWORK(dev)",
   "main": "dist/index.js",
   "types": "./index.d.ts",

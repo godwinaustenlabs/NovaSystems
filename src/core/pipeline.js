@@ -72,6 +72,11 @@ export class Pipeline {
         loops++;
         this.logger.loopStart(loops);
 
+        // [HOOK] Signal start of a new thinking loop (e.g. for typing indicators)
+        if (typeof this.config.onLoopStart === 'function') {
+          await Promise.resolve(this.config.onLoopStart(loops));
+        }
+
         // A. Call LLM with Tools
         const response = await this.llm.chat(messages, {
           tools: this.registry.getAPITools(),
@@ -98,6 +103,11 @@ export class Pipeline {
           // Execute all tools requested by the LLM in parallel
           const toolResults = await Promise.all(
             response.toolCalls.map(async (call) => {
+              
+              // [HOOK] Signal start of a specific tool execution
+              if (typeof this.config.onToolStart === 'function') {
+                await Promise.resolve(this.config.onToolStart(call.name, call.args));
+              }
 
               // Execute via Registry
               const result = await this.registry.execute(call.name, call.args);
