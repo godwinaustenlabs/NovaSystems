@@ -4,8 +4,8 @@
 // ===============================
 
 import Ajv from 'ajv';
-import nasInputSchema from '../nas_schemas/nas-input.schema.json' with { type: 'json' };
-import nasOutputSchema from '../nas_schemas/nas-output.schema.json' with { type: 'json' };
+import nasInputSchema from '../nas_schemas/nas-input.schema.json';
+import nasOutputSchema from '../nas_schemas/nas-output.schema.json';
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 

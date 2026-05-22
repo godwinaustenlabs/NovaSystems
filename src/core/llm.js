@@ -162,10 +162,15 @@ export class ChatLLM {
 
         const toolCalls = message.tool_calls.map((tc, index) => {
           try {
+            // Gemini sometimes appends `{}` to no-param tool names (e.g. "overview{}").
+            // Strip it to get the real registered name.
+            const rawName = tc.function.name || '';
+            const toolName = rawName.endsWith('{}') ? rawName.slice(0, -2) : rawName;
+
             return {
               id: tc.id || `call_${Math.random().toString(36).substr(2, 9)}`, // Safety ID for Gemini
-              name: tc.function.name,
-              args: JSON.parse(tc.function.arguments),
+              name: toolName,
+              args: JSON.parse(tc.function.arguments || '{}'),
             };
           } catch (jsonErr) {
             if (this.logger) this.logger.error("ChatLLM", `JSON Parse Error in Tool #${index} (${tc.function.name})`);
@@ -194,10 +199,36 @@ export class ChatLLM {
 
     } catch (err) {
       // =========================================================
-      // 🛠️ SELF-HEALING LOGIC FOR GEMINI ERRORS
+      // 🛠️ SELF-HEALING LOGIC
       // =========================================================
 
-      // 1. Check if we have the specific "tool_use_failed" signature
+      // --- HEAL 1: Gemini `name{}` no-param tool call (400 API validation error)
+      // When a tool has no parameters, Gemini generates `toolname{}` which the
+      // API rejects as `overview{}` not being in request.tools.
+      // We parse the real tool name from the error message and synthesize the call.
+      const noParamToolMatch = err.message && err.message.match(
+        /attempted to call tool '([^']+)\{\}' which was not in request\.tools/
+      );
+      if (noParamToolMatch) {
+        const recoveredName = noParamToolMatch[1];
+        if (this.verbose) console.warn(`[ChatLLM] ⚠️ Gemini no-param tool call detected for '${recoveredName}{}'. Self-healing...`);
+        return {
+          type: 'TOOL_CALL',
+          rawMessage: {
+            role: 'assistant',
+            content: '',
+            tool_calls: [{
+              id: `call_noParam_${Date.now()}`,
+              type: 'function',
+              function: { name: recoveredName, arguments: '{}' }
+            }]
+          },
+          toolCalls: [{ id: `call_noParam_${Date.now()}`, name: recoveredName, args: {} }],
+          usage: { prompt_tokens: 0, completion_tokens: 0 }
+        };
+      }
+
+      // --- HEAL 2: Gemini `tool_use_failed` with failed_generation
       const isToolError = err.code === 'tool_use_failed' || (err.error && err.error.code === 'tool_use_failed');
       const failedGen = err.failed_generation || (err.error && err.error.failed_generation);
 

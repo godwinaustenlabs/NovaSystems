@@ -28,42 +28,43 @@ export class ToolRegistry {
         // 1. Store the executable function
         this.tools.set(name, func);
 
-        // 2. Validate Input
-        if (!parameters || typeof parameters.parse !== 'function') {
-            console.error(`[ToolRegistry] Error: Tool '${name}' has an invalid Zod schema.`);
+        let properties = {};
+        let required = [];
+
+        // 2. Determine if it's a Zod schema or raw JSON schema
+        if (parameters && typeof parameters.parse === 'function') {
+            // It's a native Zod schema
+            const jsonSchema = zodToJsonSchema(parameters);
+            properties = jsonSchema.properties || {};
+            required = jsonSchema.required || [];
+            
+            if (Object.keys(properties).length === 0 && Object.keys(parameters.shape || {}).length > 0) {
+                console.warn(`[ToolRegistry] WARNING: Schema conversion for '${name}' resulted in empty properties.`);
+            }
+        } else if (parameters && typeof parameters === 'object') {
+            // It's a raw JSON schema
+            properties = parameters.properties || {};
+            required = parameters.required || [];
+        } else {
+            console.error(`[ToolRegistry] Error: Tool '${name}' has an invalid schema.`);
             return;
         }
 
-        // 3. Convert Zod to JSON Schema
-        // We use the basic conversion which usually returns { type: 'object', properties: {...} }
-        const jsonSchema = zodToJsonSchema(parameters);
+        // 3. Add to API list
+        // Note: For tools with no parameters, we omit `properties` entirely.
+        // Gemini and some other providers reject empty `properties: {}` and produce
+        // malformed tool calls like `toolname{}` when they encounter them.
+        const hasProperties = Object.keys(properties).length > 0;
+        const parametersSchema = hasProperties
+            ? { type: "object", properties, required }
+            : { type: "object" };
 
-        // DEBUG LOG: See exactly what the converter produced
-        // console.log(`[ToolRegistry] Raw Schema for ${name}:`, JSON.stringify(jsonSchema, null, 2));
-
-        // 4. Extract fields safely
-        // If the conversion failed (empty object), these default to empty
-        const properties = jsonSchema.properties || {};
-        const required = jsonSchema.required || [];
-
-        // Check if conversion actually worked
-        if (Object.keys(properties).length === 0 && Object.keys(parameters.shape || {}).length > 0) {
-            console.warn(`[ToolRegistry] WARNING: Schema conversion for '${name}' resulted in empty properties.`);
-            console.warn(`   ➜ Hints: 1. Run 'npm install zod@latest zod-to-json-schema@latest'`);
-            console.warn(`   ➜ Hints: 2. Ensure you are importing 'z' from the same place.`);
-        }
-
-        // 5. Add to API list
         this.schemas.push({
             type: "function",
             function: {
                 name,
                 description,
-                parameters: {
-                    type: "object",
-                    properties: properties,
-                    required: required,
-                },
+                parameters: parametersSchema,
             },
         });
     }

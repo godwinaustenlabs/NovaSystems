@@ -13,8 +13,9 @@ export class Pipeline {
    * @param {Array} config.tools - Array of external tool definitions { name, description, schema, func }
    * @param {number} config.maxToolLoop - Max iterations (default 6)
    */
-  constructor(config = {}) {
+  constructor(config = {}, outputType) {
     this.config = config;
+    this.outputType = outputType;
     this._maxToolLoop = config.maxToolLoop || 6;
 
     // 0. Initialize Logger
@@ -37,6 +38,7 @@ export class Pipeline {
     }
   }
 
+
   /**
    * Runs the agent pipeline.
    * @param {string} userPrompt - The user's input text.
@@ -44,6 +46,7 @@ export class Pipeline {
    */
   async run(userPrompt) {
     this.logger.startPipeline(userPrompt);
+
 
     try {
       // 1. Load History (Context)
